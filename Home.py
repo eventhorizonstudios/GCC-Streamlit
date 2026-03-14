@@ -165,97 +165,109 @@ with hc10:
 st.markdown("<hr style='margin:6px 0 10px;border-color:#1e293b;'>", unsafe_allow_html=True)
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# MAIN GRID — Region tabs × BU sections × Activity rows
+# MAIN GRID — Region tabs × BU sections (stacked) × 2×3 activity card grid
 # ═══════════════════════════════════════════════════════════════════════════════
 region_tabs = st.tabs([f"📍 {r}" for r in REGIONS])
 
 for tab, region in zip(region_tabs, REGIONS):
-    reg_color = REGION_COLORS[region]
-
     with tab:
-        # Inside each region tab: 4 BU columns side by side
-        bu_cols = st.columns(4)
-
-        for bu_col, bu in zip(bu_cols, BUS):
+        # 4 BU sections stacked vertically, each with a 2×3 sparkline card grid
+        for bu in BUS:
             bu_color = BU_COLORS[bu]
 
-            with bu_col:
-                # BU header
-                st.markdown(
-                    f"<div class='bu-header' style='color:{bu_color};"
-                    f"border-color:{bu_color}33;font-size:0.95rem;"
-                    f"padding:6px 0 4px;'>{bu}</div>",
-                    unsafe_allow_html=True,
-                )
+            # BU section header
+            st.markdown(
+                f"<div class='bu-header' style='color:{bu_color};"
+                f"border-color:{bu_color}33;'>{bu}</div>",
+                unsafe_allow_html=True,
+            )
 
-                # 6 activity rows for this BU × region
-                for activity in ACTIVITIES:
+            # Split 6 activities into two rows of 3
+            row_a = ACTIVITIES[:3]   # A1, A2, A3
+            row_b = ACTIVITIES[3:]   # A4, A5, A6
+
+            for row_acts in (row_a, row_b):
+                card_cols = st.columns(3)
+
+                # ── 3 sparkline cards ─────────────────────────────────────────
+                for card_col, activity in zip(card_cols, row_acts):
                     qk        = _qk(bu, region, activity)
                     row_data  = lv[lv["queue_key"] == qk].iloc[0]
                     act_color = ACTIVITY_COLORS[activity]
                     short     = ACTIVITY_SHORT[activity]
                     sl_val    = row_data["service_level_pct"]
                     sl_sc     = severity_score("service_level_pct", sl_val)
-                    dot_clr   = sev_color(sl_sc)
+                    sl_clr    = sev_color(sl_sc)
+                    dot_clr   = sl_clr
                     is_exp    = qk in st.session_state.expanded
 
-                    # ── Activity row ──────────────────────────────────────────
-                    rc1, rc2, rc3, rc4 = st.columns([0.15, 0.55, 0.5, 0.2])
+                    # Overall worst score for the card border
+                    card_sc   = max(severity_score(mk, row_data[mk]) for mk in ALL_METRICS)
+                    card_clr  = sev_color(card_sc)
+                    card_lbl  = sev_label(card_sc)
 
-                    with rc1:
-                        st.markdown(
-                            f"<div style='padding-top:38px;text-align:center;'>"
-                            f"<span style='display:inline-block;width:9px;height:9px;"
-                            f"border-radius:50%;background:{dot_clr};'></span>"
-                            f"</div>",
-                            unsafe_allow_html=True,
-                        )
+                    with card_col:
+                        # Card header row — name + badge + SL value + toggle
+                        hc1, hc2, hc3 = st.columns([2, 1, 0.8])
 
-                    with rc2:
-                        st.markdown(
-                            f"<div style='padding-top:30px;'>"
-                            f"<span style='font-size:0.8rem;font-weight:700;"
-                            f"color:{act_color};'>{short}</span>"
-                            f"<span style='font-size:0.62rem;color:#334155;"
-                            f"margin-left:5px;'>{activity}</span>"
-                            f"</div>",
-                            unsafe_allow_html=True,
-                        )
+                        with hc1:
+                            st.markdown(
+                                f"<div style='padding-top:4px;'>"
+                                f"<span style='display:inline-block;width:8px;height:8px;"
+                                f"border-radius:50%;background:{dot_clr};"
+                                f"margin-right:5px;vertical-align:middle;'></span>"
+                                f"<span style='font-size:0.82rem;font-weight:700;"
+                                f"color:{act_color};'>{short}</span>"
+                                f"<span style='font-size:0.62rem;color:#475569;"
+                                f"margin-left:4px;'>{activity}</span>"
+                                f"</div>",
+                                unsafe_allow_html=True,
+                            )
 
-                    with rc3:
-                        fig_sl = make_sl_sparkline(qk, act_color, height=72)
+                        with hc2:
+                            st.markdown(
+                                f"<div style='text-align:center;padding-top:2px;'>"
+                                f"<span style='font-size:1.25rem;font-weight:900;"
+                                f"color:{sl_clr};'>{sl_val:.0f}%</span>"
+                                f"<span style='font-size:0.55rem;color:#334155;"
+                                f"display:block;margin-top:-2px;'>SL</span>"
+                                f"</div>",
+                                unsafe_allow_html=True,
+                            )
+
+                        with hc3:
+                            toggle_label = "▼" if is_exp else "▶"
+                            if st.button(toggle_label, key=f"tog_{qk}",
+                                         help="Expand / hide metrics"):
+                                if is_exp:
+                                    st.session_state.expanded.discard(qk)
+                                else:
+                                    st.session_state.expanded.add(qk)
+                                st.rerun()
+
+                        # Sparkline — full width of the card
+                        fig_sl = make_sl_sparkline(qk, act_color, height=80)
                         st.plotly_chart(
                             fig_sl, use_container_width=True,
                             config={"displayModeBar": False},
                             key=f"sl_{qk}",
                         )
 
-                    with rc4:
-                        sl_color_val = sev_color(sl_sc)
-                        st.markdown(
-                            f"<div style='text-align:center;padding-top:10px;'>"
-                            f"<div style='font-size:1.3rem;font-weight:900;"
-                            f"color:{sl_color_val};line-height:1;'>{sl_val:.0f}%</div>"
-                            f"<div style='font-size:0.55rem;color:#334155;"
-                            f"text-transform:uppercase;letter-spacing:0.05em;'>SL</div>"
-                            f"</div>",
-                            unsafe_allow_html=True,
-                        )
-                        toggle_label = "▼ hide" if is_exp else "▶ expand"
-                        if st.button(toggle_label, key=f"tog_{qk}"):
-                            if is_exp:
-                                st.session_state.expanded.discard(qk)
-                            else:
-                                st.session_state.expanded.add(qk)
-                            st.rerun()
+                # ── Expanded panels for this row — full width, one per activity
+                for activity in row_acts:
+                    qk       = _qk(bu, region, activity)
+                    row_data = lv[lv["queue_key"] == qk].iloc[0]
+                    act_color = ACTIVITY_COLORS[activity]
+                    short     = ACTIVITY_SHORT[activity]
+                    is_exp    = qk in st.session_state.expanded
 
-                    # ── Expanded metric panel ─────────────────────────────────
                     exp_slot = st.empty()
                     if is_exp:
                         with exp_slot.container():
                             all_sc  = max(severity_score(mk, row_data[mk]) for mk in ALL_METRICS)
                             hdr_clr = sev_color(all_sc)
 
+                            # Alert summary bar
                             alert_parts = []
                             for mk, mname, unit in [
                                 ("queue_volume",      "Q",   ""),
@@ -275,16 +287,20 @@ for tab, region in zip(region_tabs, REGIONS):
                             sep = "&nbsp;<span style='color:#1e293b;'>|</span>&nbsp;"
 
                             st.markdown(
-                                f"<div style='background:#0d1117;border:1px solid {hdr_clr}33;"
-                                f"border-left:3px solid {hdr_clr};border-radius:6px;"
-                                f"padding:7px 12px;margin:2px 0 8px;'>"
+                                f"<div style='background:#0d1117;"
+                                f"border:1px solid {hdr_clr}33;"
+                                f"border-left:3px solid {hdr_clr};"
+                                f"border-radius:6px;padding:7px 12px;"
+                                f"margin:2px 0 6px;'>"
                                 f"<span style='font-size:0.72rem;font-weight:800;"
-                                f"color:{act_color};margin-right:10px;'>{short} · {activity}</span>"
+                                f"color:{act_color};margin-right:10px;'>"
+                                f"{short} · {activity}</span>"
                                 f"{sep.join(alert_parts)}"
                                 f"</div>",
                                 unsafe_allow_html=True,
                             )
 
+                            # 5 metric charts
                             chart_cols = st.columns(5)
                             for cc, (mkey, mname, unit, warn, crit, invert) in zip(
                                 chart_cols, CHART_METRIC_CFG
@@ -300,6 +316,8 @@ for tab, region in zip(region_tabs, REGIONS):
                                         config={"displayModeBar": False},
                                         key=f"m_{qk}_{mkey}",
                                     )
+
+            st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # AUTO-REFRESH
