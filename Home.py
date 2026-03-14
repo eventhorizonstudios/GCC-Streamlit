@@ -9,7 +9,7 @@ from utils import (
     GLOBAL_CSS, BUS, REGIONS, ACTIVITIES, QUEUE_KEYS, QK_META,
     BU_COLORS, REGION_COLORS, ACTIVITY_COLORS, ACTIVITY_SHORT,
     CHART_METRIC_CFG, ALL_METRICS, POLL_SECS,
-    init_and_tick, latest_values, render_sidebar_status,
+    init_and_tick, latest_values,
     severity_score, sev_color, sev_label,
     make_sl_sparkline, make_single_activity_chart, make_plain_chart,
     _qk,
@@ -23,6 +23,7 @@ st.set_page_config(
     page_icon="📡",
     layout="wide",
     initial_sidebar_state="collapsed",
+    menu_items={},
 )
 
 st.markdown(GLOBAL_CSS, unsafe_allow_html=True)
@@ -34,7 +35,6 @@ st_autorefresh(interval=POLL_SECS * 1000, key="data_refresh")
 st.markdown("""
 <style>
   .block-container { padding: 0.5rem 1.5rem 1rem !important; }
-  [data-testid="collapsedControl"] { display: none !important; }
   .bu-header {
     font-size: 1.1rem; font-weight: 900; letter-spacing: 0.08em;
     padding: 10px 0 6px; margin-bottom: 4px; border-bottom: 2px solid;
@@ -55,8 +55,6 @@ st.markdown("""
 # DATA + SIDEBAR
 # ═══════════════════════════════════════════════════════════════════════════════
 init_and_tick()
-render_sidebar_status()
-
 if "expanded" not in st.session_state:
     st.session_state.expanded = set()
 

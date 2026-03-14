@@ -126,8 +126,6 @@ GLOBAL_CSS = """
     color: #e2e8f0;
   }
   [data-testid="stHeader"]         { background: #0b0f1a !important; }
-  [data-testid="stSidebar"]        { background: #080c14 !important; border-right: 1px solid #1e293b; }
-  [data-testid="stSidebarContent"] { background: #080c14 !important; }
 
 
 
@@ -162,16 +160,6 @@ GLOBAL_CSS = """
   ::-webkit-scrollbar-track { background:#0b0f1a; }
   ::-webkit-scrollbar-thumb { background:#1e293b; border-radius:2px; }
 
-  /* Hide Streamlit's auto-generated nav */
-  [data-testid="stSidebarNav"] { display: none !important; }
-
-  /* Manual page links */
-  [data-testid="stPageLink"] p {
-    font-size: 0.88rem !important; font-weight: 600 !important;
-    color: #94a3b8 !important; padding: 2px 0 !important;
-  }
-  [data-testid="stPageLink"]:hover p,
-  [data-testid="stPageLink"][aria-current] p { color: #38bdf8 !important; }
 </style>
 """
 
@@ -329,35 +317,6 @@ def render_header(page_title: str, subtitle: str = ""):
             unsafe_allow_html=True,
         )
     st.markdown("<hr style='margin:8px 0 16px;'>", unsafe_allow_html=True)
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# SIDEBAR
-# ═══════════════════════════════════════════════════════════════════════════════
-def render_sidebar_status():
-    with st.sidebar:
-        st.markdown(
-            "<div style='padding:14px 0 10px;'>"
-            "<span style='font-size:1.1rem;font-weight:900;color:#38bdf8;"
-            "letter-spacing:0.1em;'>📡 GCC</span><br>"
-            "<span style='font-size:0.65rem;color:#475569;letter-spacing:0.08em;'>"
-            "GLOBAL CONTACT CENTRE</span>"
-            "</div>",
-            unsafe_allow_html=True,
-        )
-        st.markdown("<hr style='margin:0 0 10px;'>", unsafe_allow_html=True)
-
-        st.page_link("Home.py", label="Overview", icon="🌐")
-
-        st.markdown("<hr>", unsafe_allow_html=True)
-        st.markdown(
-            "<p style='font-size:0.62rem;color:#334155;line-height:1.7;'>"
-            "⚡ Auto-refresh: 60 s<br>"
-            "📊 Rolling window: 2 hours<br>"
-            "🟢 OK &nbsp;🟡 WARN &nbsp;🔴 CRIT<br><br>"
-            "<em>Swap <code>generate_message()</code> with a "
-            "confluent-kafka consumer to go live.</em></p>",
-            unsafe_allow_html=True,
-        )
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # CHART FACTORIES
