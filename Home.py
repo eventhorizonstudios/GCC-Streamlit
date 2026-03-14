@@ -10,7 +10,7 @@ from utils import (
     BU_COLORS, REGION_COLORS, ACTIVITY_COLORS, ACTIVITY_SHORT,
     CHART_METRIC_CFG, ALL_METRICS, POLL_SECS,
     init_and_tick, latest_values, render_sidebar_status,
-    severity_score, sev_color, sev_label,
+    severity_score, sev_color,
     make_sl_sparkline, make_single_activity_chart, make_plain_chart,
     _qk,
 )
@@ -59,6 +59,13 @@ render_sidebar_status()
 
 if "expanded" not in st.session_state:
     st.session_state.expanded = set()
+
+# Pre-computed once — SL excluded from expansion charts (shown as sparkline)
+NON_SL_CFG = [
+    (mk, mn, u, w, c, inv)
+    for mk, mn, u, w, c, inv in CHART_METRIC_CFG
+    if mk != "service_level_pct"
+]
 
 lv = latest_values()
 
@@ -115,10 +122,6 @@ def _region_summary_row(region: str):
     # Worst queue by SVC Level in this region
     worst_row  = reg_lv.loc[reg_lv["service_level_pct"].idxmin()]
     worst_sl   = worst_row["service_level_pct"]
-    worst_name = (
-        f"{worst_row['bu']} · "
-        f"{ACTIVITY_SHORT[worst_row['activity']]}"
-    )
     worst_sl_sc  = severity_score("service_level_pct", worst_sl)
     worst_sl_clr = sev_color(worst_sl_sc)
 
@@ -346,11 +349,6 @@ for tab, region in zip(region_tabs, REGIONS):
                             )
 
                             # 4 metric charts (SL omitted — shown as sparkline) + Agents Online
-                            non_sl_cfg = [
-                                (mk, mn, u, w, c, inv)
-                                for mk, mn, u, w, c, inv in CHART_METRIC_CFG
-                                if mk != "service_level_pct"
-                            ]
                             chart_cols = st.columns(5)
                             with chart_cols[0]:
                                 fig_ag = make_plain_chart(
@@ -363,7 +361,7 @@ for tab, region in zip(region_tabs, REGIONS):
                                     key=f"m_{qk}_agents",
                                 )
                             for cc, (mkey, mname, unit, warn, crit, invert) in zip(
-                                chart_cols[1:], non_sl_cfg
+                                chart_cols[1:], NON_SL_CFG
                             ):
                                 with cc:
                                     fig_m = make_single_activity_chart(

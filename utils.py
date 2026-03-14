@@ -19,11 +19,9 @@ REGIONS    = ["West", "Central", "East"]
 ACTIVITIES = ["Activity 1", "Activity 2", "Activity 3",
               "Activity 4", "Activity 5", "Activity 6"]
 
-
 def _qk(bu: str, region: str, activity: str) -> str:
     """Canonical queue key — spaces stripped: 'BU1_Region1_Activity3'"""
     return f"{bu}_{region.replace(' ', '')}_{activity.replace(' ', '')}"
-
 
 QUEUE_KEYS = [_qk(bu, r, a) for bu in BUS for r in REGIONS for a in ACTIVITIES]  # 72
 
@@ -32,7 +30,6 @@ QK_META = {
     for bu in BUS for r in REGIONS for a in ACTIVITIES
 }
 
-REGION_SHORT   = {"West": "W",  "Central": "C",  "East": "E"}
 ACTIVITY_SHORT = {f"Activity {i}": f"A{i}" for i in range(1, 7)}
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -88,7 +85,6 @@ def _build_profiles() -> dict:
                     "agents": max(3, 6 + off // 4),
                 }
     return profiles
-
 
 QUEUE_PROFILES = _build_profiles()
 
@@ -235,7 +231,6 @@ def generate_message(qkey: str, prev: dict) -> dict:
         "cases_handled":     handled,
     }
 
-
 def warm_history(qkey: str, n: int = 120) -> pd.DataFrame:
     rows, prev = [], {}
     base_ts = datetime.now() - timedelta(seconds=POLL_SECS * n)
@@ -245,7 +240,6 @@ def warm_history(qkey: str, n: int = 120) -> pd.DataFrame:
         rows.append(msg)
         prev = msg
     return pd.DataFrame(rows)
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # SESSION STATE
@@ -271,7 +265,6 @@ def init_and_tick():
         st.session_state.tick          += 1
         st.session_state.last_data_tick = now
 
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # HELPERS
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -286,18 +279,15 @@ def severity_score(metric: str, val: float) -> float:
         if val >= t["warn"]: return 0.5
         return 0.0
 
-
 def sev_color(score: float) -> str:
     if score >= 1.0: return "#ef4444"
     if score >= 0.5: return "#f59e0b"
     return "#22c55e"
 
-
 def sev_label(score: float) -> str:
     if score >= 1.0: return "CRIT"
     if score >= 0.5: return "WARN"
     return "OK"
-
 
 def latest_values() -> pd.DataFrame:
     rows = []
@@ -319,7 +309,6 @@ def latest_values() -> pd.DataFrame:
             "cases_handled":     lat["cases_handled"],
         })
     return pd.DataFrame(rows)
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # SHARED HEADER
@@ -352,7 +341,6 @@ def render_header(page_title: str, subtitle: str = ""):
             unsafe_allow_html=True,
         )
     st.markdown("<hr style='margin:8px 0 16px;'>", unsafe_allow_html=True)
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # SIDEBAR
@@ -387,10 +375,14 @@ def render_sidebar_status():
             unsafe_allow_html=True,
         )
 
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # CHART FACTORIES
 # ═══════════════════════════════════════════════════════════════════════════════
+
+def _hex_rgba(color: str, alpha: float) -> str:
+    """Convert a '#rrggbb' hex color to an rgba() CSS string."""
+    return f"rgba({int(color[1:3],16)},{int(color[3:5],16)},{int(color[5:7],16)},{alpha})"
+
 def _base_layout(height: int) -> dict:
     return dict(
         paper_bgcolor=CHART_BG, plot_bgcolor=CHART_BG,
@@ -401,7 +393,6 @@ def _base_layout(height: int) -> dict:
                    tickfont=dict(color="#475569", size=9)),
         hovermode="x unified",
     )
-
 
 def _add_bands(fig, warn, crit, y_min, y_max, invert):
     if not invert:
@@ -416,7 +407,6 @@ def _add_bands(fig, warn, crit, y_min, y_max, invert):
                       fillcolor="#ef4444", opacity=0.09, line_width=0)
     fig.add_hline(y=warn, line=dict(color="#f59e0b", dash="dash", width=1), opacity=0.5)
     fig.add_hline(y=crit, line=dict(color="#ef4444", dash="dash", width=1), opacity=0.5)
-
 
 def make_activity_chart(bu: str, region: str, metric_key: str, unit: str,
                          warn: float, crit: float, invert: bool = False,
@@ -459,52 +449,6 @@ def make_activity_chart(bu: str, region: str, metric_key: str, unit: str,
     fig.update_layout(**layout)
     return fig
 
-
-def make_heatmap(lv: pd.DataFrame) -> go.Figure:
-    """12-row heatmap aggregated by (BU × Region) — worst score across activities."""
-    metric_keys   = ["queue_volume", "aht_seconds", "occupancy_pct", "adherence_pct", "service_level_pct"]
-    metric_labels = ["Queue Vol", "AHT (s)", "Occupancy %", "Adherence %", "Svc Level %"]
-    units         = ["", "s", "%", "%", "%"]
-
-    row_labels, z_vals, z_text = [], [], []
-
-    for bu in BUS:
-        for region in REGIONS:
-            subset = lv[(lv["bu"] == bu) & (lv["region"] == region)]
-            row_labels.append(f"{bu}  ·  {region}")
-            row_z, row_t = [], []
-            for mk, u in zip(metric_keys, units):
-                # Worst value direction: max for normal metrics, min for inverted
-                invert = THRESHOLDS[mk]["invert"]
-                worst_val   = subset[mk].min() if invert else subset[mk].max()
-                worst_score = severity_score(mk, worst_val)
-                row_z.append(worst_score)
-                row_t.append(f"{worst_val:.0f}{u}")
-            z_vals.append(row_z)
-            z_text.append(row_t)
-
-    colorscale = [
-        [0.0, "#14532d"], [0.45, "#14532d"],
-        [0.5, "#78350f"], [0.74, "#78350f"],
-        [0.75, "#7f1d1d"], [1.0, "#7f1d1d"],
-    ]
-    fig = go.Figure(data=go.Heatmap(
-        z=z_vals, x=metric_labels, y=row_labels,
-        text=z_text, texttemplate="<b>%{text}</b>",
-        textfont=dict(size=11, color="white"),
-        colorscale=colorscale, zmin=0, zmax=1,
-        showscale=False, xgap=3, ygap=3,
-        hovertemplate="<b>%{y}</b><br>%{x}: %{text}<extra></extra>",
-    ))
-    fig.update_layout(
-        paper_bgcolor=CHART_BG, plot_bgcolor=CHART_BG,
-        margin=dict(l=10, r=10, t=10, b=10), height=480,
-        xaxis=dict(side="top", tickfont=dict(color="#94a3b8", size=12), tickangle=0),
-        yaxis=dict(tickfont=dict(color="#94a3b8", size=11), autorange="reversed"),
-    )
-    return fig
-
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # OVERVIEW-SPECIFIC CHART FACTORIES
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -530,7 +474,7 @@ def make_sl_sparkline(qk: str, color: str, height: int = 90) -> go.Figure:
         x=df_q["ts"], y=vals,
         line=dict(color=color, width=2), mode="lines",
         fill="tozeroy",
-        fillcolor=f"rgba({int(color[1:3],16)},{int(color[3:5],16)},{int(color[5:7],16)},0.06)",
+        fillcolor=_hex_rgba(color, 0.06),
         hovertemplate="%{y:.0f}%<br>%{x|%H:%M:%S}<extra></extra>",
         showlegend=False,
     ))
@@ -552,7 +496,6 @@ def make_sl_sparkline(qk: str, color: str, height: int = 90) -> go.Figure:
     )
     return fig
 
-
 def make_single_activity_chart(qk: str, metric_key: str, label: str,
                                 unit: str, warn: float, crit: float,
                                 invert: bool, color: str,
@@ -570,7 +513,7 @@ def make_single_activity_chart(qk: str, metric_key: str, label: str,
         x=df_q["ts"], y=vals,
         line=dict(color=color, width=2), mode="lines",
         fill="tozeroy",
-        fillcolor=f"rgba({int(color[1:3],16)},{int(color[3:5],16)},{int(color[5:7],16)},0.07)",
+        fillcolor=_hex_rgba(color, 0.07),
         hovertemplate=f"%{{y:.0f}} {unit}<br>%{{x|%H:%M:%S}}<extra></extra>",
         showlegend=False,
     ))
@@ -594,8 +537,6 @@ def make_single_activity_chart(qk: str, metric_key: str, label: str,
     )
     return fig
 
-
-
 def make_plain_chart(qk: str, metric_key: str, label: str, unit: str,
                      color: str, height: int = 160) -> go.Figure:
     """Step chart for discrete metrics like agents_logged — honest representation
@@ -604,7 +545,7 @@ def make_plain_chart(qk: str, metric_key: str, label: str, unit: str,
     vals = df_q[metric_key]
     y_max = max(vals.max() * 1.25, 1)
     y_min = max(vals.min() * 0.75, 0)
-    rgba  = f"rgba({int(color[1:3],16)},{int(color[3:5],16)},{int(color[5:7],16)},0.15)"
+    rgba  = _hex_rgba(color, 0.15)
 
     fig = go.Figure()
     fig.add_trace(go.Scatter(
@@ -639,8 +580,6 @@ def make_plain_chart(qk: str, metric_key: str, label: str, unit: str,
     )
     return fig
 
-
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # BU PAGE RENDERER
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -655,7 +594,6 @@ def render_bu_page(bu: str):
         with tab:
             _render_region(bu, region, lv)
 
-
 def _render_region(bu: str, region: str, lv: pd.DataFrame):
     """Content for a single region tab on a BU page."""
     region_lv = lv[(lv["bu"] == bu) & (lv["region"] == region)].reset_index(drop=True)
@@ -663,6 +601,17 @@ def _render_region(bu: str, region: str, lv: pd.DataFrame):
     # ── Activity Snapshot Cards (2 rows × 3 cols) ───────────────────────────
     st.markdown('<p class="section-label">📊 Activity Snapshot</p>',
                 unsafe_allow_html=True)
+
+    def _mini_kpi(label, val, mk):
+        sc  = severity_score(mk, val)
+        clr = sev_color(sc)
+        return (
+            f"<div style='text-align:center;'>"
+            f"<div style='font-size:0.55rem;color:#475569;text-transform:uppercase;"
+            f"letter-spacing:0.06em;margin-bottom:2px;'>{label}</div>"
+            f"<div style='font-size:1.0rem;font-weight:800;color:{clr};'>{val:.0f}</div>"
+            f"</div>"
+        )
 
     row1 = st.columns(3)
     row2 = st.columns(3)
@@ -673,25 +622,11 @@ def _render_region(bu: str, region: str, lv: pd.DataFrame):
         qk    = _qk(bu, region, act)
         color = ACTIVITY_COLORS[act]
         short = ACTIVITY_SHORT[act]
-        prev_df  = st.session_state.history[qk]
-        prev_row = prev_df.iloc[-2] if len(prev_df) > 1 else prev_df.iloc[-1]
-
         # Overall worst score for this activity
         act_scores = [severity_score(mk, row[mk]) for mk in ALL_METRICS]
         act_score  = max(act_scores)
         badge_clr  = sev_color(act_score)
         badge_lbl  = sev_label(act_score)
-
-        def _mini_kpi(label, val, mk):
-            sc  = severity_score(mk, val)
-            clr = sev_color(sc)
-            return (
-                f"<div style='text-align:center;'>"
-                f"<div style='font-size:0.55rem;color:#475569;text-transform:uppercase;"
-                f"letter-spacing:0.06em;margin-bottom:2px;'>{label}</div>"
-                f"<div style='font-size:1.0rem;font-weight:800;color:{clr};'>{val:.0f}</div>"
-                f"</div>"
-            )
 
         kpis = (
             _mini_kpi("Queue",    row["queue_volume"],      "queue_volume")      +
