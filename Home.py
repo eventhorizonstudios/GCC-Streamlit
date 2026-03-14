@@ -409,6 +409,7 @@ for tab, region in zip(region_tabs, REGIONS):
 
                             # Metric tiles row — one card per metric
                             metric_defs = [
+                                ("service_level_pct", "Service Level","%"),
                                 ("agents_logged",     "Agents Online",""),
                                 ("queue_volume",      "Queue Volume", ""),
                                 ("aht_seconds",       "AHT",          "s"),
@@ -416,7 +417,7 @@ for tab, region in zip(region_tabs, REGIONS):
                                 ("adherence_pct",     "Adherence",    "%"),
                             ]
                             title_col_h, *metric_tile_cols = st.columns(
-                                [1.2, 1, 1, 1, 1, 1]
+                                [1.2, 1, 1, 1, 1, 1, 1]
                             )
                             with title_col_h:
                                 st.markdown(
@@ -460,7 +461,8 @@ for tab, region in zip(region_tabs, REGIONS):
                                         f"<div style='font-size:1.3rem;font-weight:900;"
                                         f"color:{clr};line-height:1;'>{val:.0f}{unit}</div>"
                                         f"<div style='font-size:0.6rem;font-weight:700;"
-                                        f"color:{clr};margin-top:3px;letter-spacing:0.05em;'>"
+                                        f"color:{clr};margin-top:3px;letter-spacing:0.05em;"
+                                        f"min-height:14px;'>"
                                         f"{lbl}</div>"
                                         f"</div>",
                                         unsafe_allow_html=True,
