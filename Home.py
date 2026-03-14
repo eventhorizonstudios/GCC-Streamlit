@@ -409,9 +409,9 @@ for tab, region in zip(region_tabs, REGIONS):
 
                             # Metric tiles row — one card per metric
                             metric_defs = [
-                                ("queue_volume",      "Queue",        ""),
+                                ("agents_logged",     "Agents Online",""),
+                                ("queue_volume",      "Queue Volume", ""),
                                 ("aht_seconds",       "AHT",          "s"),
-                                ("service_level_pct", "Service Level","%"),
                                 ("occupancy_pct",     "Occupancy",    "%"),
                                 ("adherence_pct",     "Adherence",    "%"),
                             ]
@@ -437,15 +437,22 @@ for tab, region in zip(region_tabs, REGIONS):
                                     unsafe_allow_html=True,
                                 )
                             for tile_col, (mk, mname, unit) in zip(metric_tile_cols, metric_defs):
-                                sc  = severity_score(mk, row_data[mk])
-                                clr = sev_color(sc)
-                                lbl = sev_label(sc)
                                 val = row_data[mk]
+                                if mk == "agents_logged":
+                                    # No threshold for agents — neutral styling
+                                    clr = "#38bdf8"
+                                    lbl = ""
+                                    border_clr = "#38bdf860"
+                                else:
+                                    sc  = severity_score(mk, val)
+                                    clr = sev_color(sc)
+                                    lbl = sev_label(sc)
+                                    border_clr = clr
                                 with tile_col:
                                     st.markdown(
                                         f"<div style='text-align:center;background:#0d1117;"
                                         f"border:1px solid #1e293b;"
-                                        f"border-top:2px solid {clr};"
+                                        f"border-top:2px solid {border_clr};"
                                         f"border-radius:8px;padding:8px 6px;'>"
                                         f"<div style='font-size:0.55rem;color:#475569;"
                                         f"text-transform:uppercase;letter-spacing:0.07em;"
