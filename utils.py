@@ -1,6 +1,6 @@
 """
 utils.py — shared constants, data generation, helpers, and chart factories.
-Imported by every page so logic lives in one place.
+Structure: 4 BUs × 3 Regions × 6 Activities = 72 queues total.
 """
 import time
 import random
@@ -12,39 +12,89 @@ import plotly.graph_objects as go
 import streamlit as st
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# CONSTANTS
+# STRUCTURE
 # ═══════════════════════════════════════════════════════════════════════════════
 BUS        = ["BU1", "BU2", "BU3", "BU4"]
-CHANNELS   = ["Calls", "Texts", "Emails"]
-QUEUE_KEYS = [f"{bu}_{ch}" for bu in BUS for ch in CHANNELS]
+REGIONS    = ["Region 1", "Region 2", "Region 3"]
+ACTIVITIES = ["Activity 1", "Activity 2", "Activity 3",
+              "Activity 4", "Activity 5", "Activity 6"]
 
-CHANNEL_COLORS = {"Calls": "#38bdf8", "Texts": "#a78bfa", "Emails": "#34d399"}
-CHANNEL_ICONS  = {"Calls": "📞",       "Texts": "💬",       "Emails": "📧"}
-BU_COLORS      = {"BU1": "#38bdf8",   "BU2": "#f472b6",   "BU3": "#fb923c", "BU4": "#a78bfa"}
 
-# Baselines are comfortably inside OK territory for every metric.
-# Mean reversion in generate_message() keeps values anchored to these baselines.
-# Spikes (1.5 % chance) push toward WARN; only rare compounding reaches CRIT.
-#   queue_volume  : warn ≥ 50,  crit ≥ 80   → baselines 10–38
-#   aht_seconds   : warn ≥ 300, crit ≥ 420  → baselines 190–265
-#   occupancy_pct : warn ≥ 85,  crit ≥ 95   → baselines 55–78
-#   adherence_pct : warn < 88,  crit < 80   → baselines 91–97
-#   service_level : warn < 80,  crit < 70   → baselines 85–94
-QUEUE_PROFILES = {
-    "BU1_Calls":  {"queue": 25, "aht": 220, "occ": 68, "adh": 93, "sl": 89, "agents": 12},
-    "BU1_Texts":  {"queue": 16, "aht": 155, "occ": 60, "adh": 94, "sl": 91, "agents":  7},
-    "BU1_Emails": {"queue": 11, "aht": 240, "occ": 56, "adh": 95, "sl": 92, "agents":  5},
-    "BU2_Calls":  {"queue": 35, "aht": 245, "occ": 72, "adh": 92, "sl": 86, "agents": 16},
-    "BU2_Texts":  {"queue": 22, "aht": 175, "occ": 65, "adh": 93, "sl": 87, "agents":  9},
-    "BU2_Emails": {"queue": 18, "aht": 255, "occ": 60, "adh": 94, "sl": 88, "agents":  7},
-    "BU3_Calls":  {"queue": 18, "aht": 200, "occ": 60, "adh": 95, "sl": 92, "agents": 10},
-    "BU3_Texts":  {"queue": 10, "aht": 135, "occ": 52, "adh": 96, "sl": 94, "agents":  5},
-    "BU3_Emails": {"queue":  8, "aht": 210, "occ": 47, "adh": 97, "sl": 95, "agents":  4},
-    "BU4_Calls":  {"queue": 38, "aht": 260, "occ": 76, "adh": 91, "sl": 85, "agents": 19},
-    "BU4_Texts":  {"queue": 28, "aht": 200, "occ": 70, "adh": 92, "sl": 87, "agents": 12},
-    "BU4_Emails": {"queue": 22, "aht": 265, "occ": 65, "adh": 93, "sl": 88, "agents":  8},
+def _qk(bu: str, region: str, activity: str) -> str:
+    """Canonical queue key — spaces stripped: 'BU1_Region1_Activity3'"""
+    return f"{bu}_{region.replace(' ', '')}_{activity.replace(' ', '')}"
+
+
+QUEUE_KEYS = [_qk(bu, r, a) for bu in BUS for r in REGIONS for a in ACTIVITIES]  # 72
+
+QK_META = {
+    _qk(bu, r, a): {"bu": bu, "region": r, "activity": a}
+    for bu in BUS for r in REGIONS for a in ACTIVITIES
 }
 
+REGION_SHORT   = {"Region 1": "R1",  "Region 2": "R2",  "Region 3": "R3"}
+ACTIVITY_SHORT = {f"Activity {i}": f"A{i}" for i in range(1, 7)}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# COLOURS & DISPLAY
+# ═══════════════════════════════════════════════════════════════════════════════
+ACTIVITY_COLORS = {
+    "Activity 1": "#38bdf8",  # sky blue
+    "Activity 2": "#a78bfa",  # violet
+    "Activity 3": "#34d399",  # emerald
+    "Activity 4": "#fb923c",  # orange
+    "Activity 5": "#f472b6",  # pink
+    "Activity 6": "#facc15",  # yellow
+}
+
+BU_COLORS = {
+    "BU1": "#38bdf8",
+    "BU2": "#f472b6",
+    "BU3": "#fb923c",
+    "BU4": "#a78bfa",
+}
+
+REGION_COLORS = {
+    "Region 1": "#60a5fa",
+    "Region 2": "#c084fc",
+    "Region 3": "#4ade80",
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# QUEUE PROFILES  (programmatically generated — all baselines inside OK)
+# ═══════════════════════════════════════════════════════════════════════════════
+#   Thresholds reminder:
+#     queue_volume  : warn ≥ 50,  crit ≥ 80
+#     aht_seconds   : warn ≥ 300, crit ≥ 420
+#     occupancy_pct : warn ≥ 85,  crit ≥ 95
+#     adherence_pct : warn < 88,  crit < 80  (inverted)
+#     service_level : warn < 80,  crit < 70  (inverted)
+def _build_profiles() -> dict:
+    bu_off  = {"BU1":  0, "BU2":  6, "BU3": -4, "BU4": 12}
+    reg_off = {"Region 1": 0, "Region 2": 3, "Region 3": -2}
+    act_off = {"Activity 1": 0, "Activity 2": 2, "Activity 3": 1,
+               "Activity 4": 3, "Activity 5": 1, "Activity 6": 2}
+    profiles = {}
+    for bu in BUS:
+        for r in REGIONS:
+            for a in ACTIVITIES:
+                off = bu_off[bu] + reg_off[r] + act_off[a]
+                profiles[_qk(bu, r, a)] = {
+                    "queue":  max(5,  18 + off),
+                    "aht":    max(160, 205 + off * 2),
+                    "occ":    int(min(80, max(50, 60 + off * 0.7))),
+                    "adh":    int(min(97, max(89, 95 - off * 0.25))),
+                    "sl":     int(min(97, max(83, 92 - off * 0.3))),
+                    "agents": max(3, 6 + off // 4),
+                }
+    return profiles
+
+
+QUEUE_PROFILES = _build_profiles()
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# THRESHOLDS & CHART CONFIG
+# ═══════════════════════════════════════════════════════════════════════════════
 THRESHOLDS = {
     "queue_volume":      {"warn": 50,  "crit": 80,  "invert": False},
     "aht_seconds":       {"warn": 300, "crit": 420, "invert": False},
@@ -69,7 +119,7 @@ HIST_LEN    = 480
 POLL_SECS   = 10
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# GLOBAL CSS  (call once per page)
+# GLOBAL CSS
 # ═══════════════════════════════════════════════════════════════════════════════
 GLOBAL_CSS = """
 <style>
@@ -96,6 +146,27 @@ GLOBAL_CSS = """
     font-size:0.68rem; font-weight:700; letter-spacing:0.14em;
     text-transform:uppercase; color:#38bdf8; margin:0 0 6px 0;
   }
+
+  /* Tabs styling */
+  [data-testid="stTabs"] [data-testid="stMarkdownContainer"] p { margin:0; }
+  button[data-baseweb="tab"] {
+    background: #111827 !important;
+    color: #64748b !important;
+    border-bottom: 2px solid #1e293b !important;
+    font-size: 0.82rem !important;
+    font-weight: 600 !important;
+    padding: 8px 18px !important;
+  }
+  button[data-baseweb="tab"][aria-selected="true"] {
+    color: #38bdf8 !important;
+    border-bottom: 2px solid #38bdf8 !important;
+    background: #0f172a !important;
+  }
+  [data-testid="stTabPanel"] {
+    background: #0b0f1a !important;
+    padding-top: 16px !important;
+  }
+
   [data-testid="stExpander"] {
     background:#111827 !important; border:1px solid #1e293b !important;
     border-radius:8px !important;
@@ -107,20 +178,16 @@ GLOBAL_CSS = """
   ::-webkit-scrollbar-track { background:#0b0f1a; }
   ::-webkit-scrollbar-thumb { background:#1e293b; border-radius:2px; }
 
-  /* Sidebar nav links */
+  /* Hide Streamlit's auto-generated nav */
   [data-testid="stSidebarNav"] { display: none !important; }
 
-  /* Style manual page links */
+  /* Manual page links */
   [data-testid="stPageLink"] p {
-    font-size: 0.88rem !important;
-    font-weight: 600 !important;
-    color: #94a3b8 !important;
-    padding: 2px 0 !important;
+    font-size: 0.88rem !important; font-weight: 600 !important;
+    color: #94a3b8 !important; padding: 2px 0 !important;
   }
   [data-testid="stPageLink"]:hover p,
-  [data-testid="stPageLink"][aria-current] p {
-    color: #38bdf8 !important;
-  }
+  [data-testid="stPageLink"][aria-current] p { color: #38bdf8 !important; }
 </style>
 """
 
@@ -131,9 +198,6 @@ def generate_message(qkey: str, prev: dict) -> dict:
     p = QUEUE_PROFILES[qkey]
 
     def mean_revert(prev_val, baseline, lo, hi, sigma=0.025, pull=0.15):
-        """Step toward baseline (pull) then add small noise.
-        pull=0.15 means 15% of the gap to baseline is closed each tick,
-        keeping the random walk anchored in OK territory."""
         target = prev_val + pull * (baseline - prev_val)
         noise  = np.random.normal(0, max(abs(target) * sigma, 0.3))
         return float(np.clip(target + noise, lo, hi))
@@ -144,14 +208,12 @@ def generate_message(qkey: str, prev: dict) -> dict:
     d  = mean_revert(prev.get("adherence_pct",     p["adh"]),   p["adh"],   65,  100)
     sl = mean_revert(prev.get("service_level_pct", p["sl"]),    p["sl"],    50,  100)
 
-    # Spikes: 1.5 % chance — sized to reach WARN territory, not CRIT.
-    # A second independent spike on the same tick (0.015 * 0.015 = 0.02 %) is
-    # what occasionally tips a value from WARN into CRIT, keeping CRIT rare.
+    # Spikes: 1.5% chance — sized to nudge toward WARN; only rare doubles reach CRIT
     if random.random() < 0.015: q  = min(q  * random.uniform(1.4, 1.8), 120)
     if random.random() < 0.015: a  = min(a  * random.uniform(1.15, 1.4), 500)
     if random.random() < 0.015: sl = max(sl * random.uniform(0.82, 0.93), 50)
 
-    agents  = max(1, p["agents"] + random.randint(-2, 3))
+    agents  = max(1, p["agents"] + random.randint(-1, 2))
     offered = random.randint(int(q * 1.4), int(q * 3.0 + 15))
     handled = min(offered, int(offered * random.uniform(0.88, 0.99)))
 
@@ -180,11 +242,9 @@ def warm_history(qkey: str, n: int = 30) -> pd.DataFrame:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# SESSION STATE INIT + DATA TICK  (called at top of every page)
+# SESSION STATE
 # ═══════════════════════════════════════════════════════════════════════════════
 def init_and_tick():
-    """Initialise session state on first load, then ingest a new data point
-    only when POLL_SECS have elapsed — navigation reruns don't generate ticks."""
     if "history" not in st.session_state:
         st.session_state.history        = {qk: warm_history(qk) for qk in QUEUE_KEYS}
         st.session_state.prev_msg       = {
@@ -199,8 +259,7 @@ def init_and_tick():
             msg = generate_message(qk, st.session_state.prev_msg[qk])
             st.session_state.history[qk] = (
                 pd.concat([st.session_state.history[qk], pd.DataFrame([msg])],
-                          ignore_index=True)
-                .tail(HIST_LEN)
+                          ignore_index=True).tail(HIST_LEN)
             )
             st.session_state.prev_msg[qk] = msg
         st.session_state.tick          += 1
@@ -237,11 +296,13 @@ def sev_label(score: float) -> str:
 def latest_values() -> pd.DataFrame:
     rows = []
     for qk in QUEUE_KEYS:
-        lat = st.session_state.history[qk].iloc[-1]
+        lat  = st.session_state.history[qk].iloc[-1]
+        meta = QK_META[qk]
         rows.append({
             "queue_key":         qk,
-            "bu":                qk.split("_")[0],
-            "channel":           qk.split("_")[1],
+            "bu":                meta["bu"],
+            "region":            meta["region"],
+            "activity":          meta["activity"],
             "queue_volume":      lat["queue_volume"],
             "aht_seconds":       lat["aht_seconds"],
             "occupancy_pct":     lat["occupancy_pct"],
@@ -288,11 +349,10 @@ def render_header(page_title: str, subtitle: str = ""):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# SIDEBAR STATUS PANEL  (call from every page)
+# SIDEBAR
 # ═══════════════════════════════════════════════════════════════════════════════
 def render_sidebar_status():
     with st.sidebar:
-        # ── Branding ──────────────────────────────────────────────────────────
         st.markdown(
             "<div style='padding:14px 0 10px;'>"
             "<span style='font-size:1.1rem;font-weight:900;color:#38bdf8;"
@@ -304,12 +364,11 @@ def render_sidebar_status():
         )
         st.markdown("<hr style='margin:0 0 10px;'>", unsafe_allow_html=True)
 
-        # ── Manual navigation ─────────────────────────────────────────────────
-        st.page_link("Home.py",          label="Overview", icon="🌐")
-        st.page_link("pages/1_BU1.py",   label="BU1",      icon="🏢")
-        st.page_link("pages/2_BU2.py",   label="BU2",      icon="🏢")
-        st.page_link("pages/3_BU3.py",   label="BU3",      icon="🏢")
-        st.page_link("pages/4_BU4.py",   label="BU4",      icon="🏢")
+        st.page_link("Home.py",        label="Overview", icon="🌐")
+        st.page_link("pages/1_BU1.py", label="BU1",      icon="🏢")
+        st.page_link("pages/2_BU2.py", label="BU2",      icon="🏢")
+        st.page_link("pages/3_BU3.py", label="BU3",      icon="🏢")
+        st.page_link("pages/4_BU4.py", label="BU4",      icon="🏢")
 
         st.markdown("<hr>", unsafe_allow_html=True)
         st.markdown(
@@ -321,6 +380,7 @@ def render_sidebar_status():
             "confluent-kafka consumer to go live.</em></p>",
             unsafe_allow_html=True,
         )
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # CHART FACTORIES
@@ -352,30 +412,33 @@ def _add_bands(fig, warn, crit, y_min, y_max, invert):
     fig.add_hline(y=crit, line=dict(color="#ef4444", dash="dash", width=1), opacity=0.5)
 
 
-def make_multi_channel_chart(bu: str, metric_key: str, unit: str,
-                              warn: float, crit: float, invert: bool = False,
-                              height: int = 220) -> go.Figure:
+def make_activity_chart(bu: str, region: str, metric_key: str, unit: str,
+                         warn: float, crit: float, invert: bool = False,
+                         height: int = 220) -> go.Figure:
+    """One chart per metric — 6 coloured lines, one per activity."""
     fig = go.Figure()
     all_vals = []
-    for ch in CHANNELS:
-        all_vals.extend(st.session_state.history[f"{bu}_{ch}"][metric_key].tolist())
+    for act in ACTIVITIES:
+        all_vals.extend(st.session_state.history[_qk(bu, region, act)][metric_key].tolist())
     y_max = max(max(all_vals) * 1.2, crit * 1.1) if all_vals else crit * 1.2
     y_min = max(min(all_vals) * 0.85, 0)         if all_vals else 0
     _add_bands(fig, warn, crit, y_min, y_max, invert)
 
-    for ch in CHANNELS:
-        df_q  = st.session_state.history[f"{bu}_{ch}"]
-        color = CHANNEL_COLORS[ch]
+    for act in ACTIVITIES:
+        qk    = _qk(bu, region, act)
+        df_q  = st.session_state.history[qk]
+        color = ACTIVITY_COLORS[act]
+        short = ACTIVITY_SHORT[act]
         fig.add_trace(go.Scatter(
             x=df_q["ts"], y=df_q[metric_key],
-            line=dict(color=color, width=2.2), mode="lines",
-            name=f"{CHANNEL_ICONS[ch]} {ch}",
-            hovertemplate=f"<b>{ch}: %{{y:.0f}} {unit}</b><br>%{{x|%H:%M:%S}}<extra></extra>",
+            line=dict(color=color, width=1.8), mode="lines",
+            name=short,
+            hovertemplate=f"<b>{act}: %{{y:.0f}} {unit}</b><br>%{{x|%H:%M:%S}}<extra></extra>",
         ))
         fig.add_trace(go.Scatter(
             x=[df_q["ts"].iloc[-1]], y=[df_q[metric_key].iloc[-1]],
             mode="markers",
-            marker=dict(color=color, size=7, line=dict(color="#0b0f1a", width=2)),
+            marker=dict(color=color, size=6, line=dict(color="#0b0f1a", width=2)),
             showlegend=False, hoverinfo="skip",
         ))
 
@@ -383,7 +446,8 @@ def make_multi_channel_chart(bu: str, metric_key: str, unit: str,
     layout["showlegend"] = True
     layout["legend"] = dict(
         orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1,
-        font=dict(color="#94a3b8", size=10), bgcolor="rgba(0,0,0,0)",
+        font=dict(color="#94a3b8", size=9), bgcolor="rgba(0,0,0,0)",
+        traceorder="normal",
     )
     layout["yaxis"]["ticksuffix"] = f" {unit}"
     fig.update_layout(**layout)
@@ -391,19 +455,27 @@ def make_multi_channel_chart(bu: str, metric_key: str, unit: str,
 
 
 def make_heatmap(lv: pd.DataFrame) -> go.Figure:
+    """12-row heatmap aggregated by (BU × Region) — worst score across activities."""
     metric_keys   = ["queue_volume", "aht_seconds", "occupancy_pct", "adherence_pct", "service_level_pct"]
     metric_labels = ["Queue Vol", "AHT (s)", "Occupancy %", "Adherence %", "Svc Level %"]
     units         = ["", "s", "%", "%", "%"]
 
-    queue_labels, z_vals, z_text = [], [], []
-    for _, row in lv.iterrows():
-        queue_labels.append(f"{row['bu']}  {CHANNEL_ICONS[row['channel']]} {row['channel']}")
-        row_z, row_t = [], []
-        for mk, u in zip(metric_keys, units):
-            row_z.append(severity_score(mk, row[mk]))
-            row_t.append(f"{row[mk]:.0f}{u}")
-        z_vals.append(row_z)
-        z_text.append(row_t)
+    row_labels, z_vals, z_text = [], [], []
+
+    for bu in BUS:
+        for region in REGIONS:
+            subset = lv[(lv["bu"] == bu) & (lv["region"] == region)]
+            row_labels.append(f"{bu}  ·  {region}")
+            row_z, row_t = [], []
+            for mk, u in zip(metric_keys, units):
+                # Worst value direction: max for normal metrics, min for inverted
+                invert = THRESHOLDS[mk]["invert"]
+                worst_val   = subset[mk].min() if invert else subset[mk].max()
+                worst_score = severity_score(mk, worst_val)
+                row_z.append(worst_score)
+                row_t.append(f"{worst_val:.0f}{u}")
+            z_vals.append(row_z)
+            z_text.append(row_t)
 
     colorscale = [
         [0.0, "#14532d"], [0.45, "#14532d"],
@@ -411,7 +483,7 @@ def make_heatmap(lv: pd.DataFrame) -> go.Figure:
         [0.75, "#7f1d1d"], [1.0, "#7f1d1d"],
     ]
     fig = go.Figure(data=go.Heatmap(
-        z=z_vals, x=metric_labels, y=queue_labels,
+        z=z_vals, x=metric_labels, y=row_labels,
         text=z_text, texttemplate="<b>%{text}</b>",
         textfont=dict(size=11, color="white"),
         colorscale=colorscale, zmin=0, zmax=1,
@@ -420,7 +492,7 @@ def make_heatmap(lv: pd.DataFrame) -> go.Figure:
     ))
     fig.update_layout(
         paper_bgcolor=CHART_BG, plot_bgcolor=CHART_BG,
-        margin=dict(l=10, r=10, t=10, b=10), height=440,
+        margin=dict(l=10, r=10, t=10, b=10), height=480,
         xaxis=dict(side="top", tickfont=dict(color="#94a3b8", size=12), tickangle=0),
         yaxis=dict(tickfont=dict(color="#94a3b8", size=11), autorange="reversed"),
     )
@@ -428,51 +500,63 @@ def make_heatmap(lv: pd.DataFrame) -> go.Figure:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# BU PAGE RENDERER  (reused by all four BU pages)
+# BU PAGE RENDERER
 # ═══════════════════════════════════════════════════════════════════════════════
 def render_bu_page(bu: str):
-    render_header(bu, "📞 CALLS  ·  💬 TEXTS  ·  📧 EMAILS")
-    lv    = latest_values()
-    bu_lv = lv[lv["bu"] == bu].reset_index(drop=True)
+    render_header(bu, "3 REGIONS  ·  6 ACTIVITIES PER REGION")
+    lv = latest_values()
 
-    # ── Channel Snapshot Cards ──────────────────────────────────────────────
-    st.markdown('<p class="section-label">📊 Channel Snapshot</p>', unsafe_allow_html=True)
-    ch_cols = st.columns(3)
+    # ── Region tabs ────────────────────────────────────────────────────────────
+    tabs = st.tabs([f"📍 {r}" for r in REGIONS])
 
-    for col, ch in zip(ch_cols, CHANNELS):
-        row   = bu_lv[bu_lv["channel"] == ch].iloc[0]
-        color = CHANNEL_COLORS[ch]
-        icon  = CHANNEL_ICONS[ch]
-        df_q  = st.session_state.history[f"{bu}_{ch}"]
-        prev  = df_q.iloc[-2] if len(df_q) > 1 else df_q.iloc[-1]
+    for tab, region in zip(tabs, REGIONS):
+        with tab:
+            _render_region(bu, region, lv)
 
-        def _kpi_cell(label, val, fmt, unit, mk, prev_val):
-            sc     = severity_score(mk, val)
-            clr    = sev_color(sc)
-            delta  = val - prev_val
-            up_good = THRESHOLDS[mk]["invert"]
-            if abs(delta) < 0.05:
-                d_clr = "#475569"
-            else:
-                d_clr = "#22c55e" if (delta > 0) == up_good else "#ef4444"
-            arrow = "▲" if delta > 0 else "▼"
+
+def _render_region(bu: str, region: str, lv: pd.DataFrame):
+    """Content for a single region tab on a BU page."""
+    region_lv = lv[(lv["bu"] == bu) & (lv["region"] == region)].reset_index(drop=True)
+
+    # ── Activity Snapshot Cards (2 rows × 3 cols) ───────────────────────────
+    st.markdown('<p class="section-label">📊 Activity Snapshot</p>',
+                unsafe_allow_html=True)
+
+    row1 = st.columns(3)
+    row2 = st.columns(3)
+    card_cols = list(row1) + list(row2)
+
+    for col, act in zip(card_cols, ACTIVITIES):
+        row   = region_lv[region_lv["activity"] == act].iloc[0]
+        qk    = _qk(bu, region, act)
+        color = ACTIVITY_COLORS[act]
+        short = ACTIVITY_SHORT[act]
+        prev_df  = st.session_state.history[qk]
+        prev_row = prev_df.iloc[-2] if len(prev_df) > 1 else prev_df.iloc[-1]
+
+        # Overall worst score for this activity
+        act_scores = [severity_score(mk, row[mk]) for mk in ALL_METRICS]
+        act_score  = max(act_scores)
+        badge_clr  = sev_color(act_score)
+        badge_lbl  = sev_label(act_score)
+
+        def _mini_kpi(label, val, mk):
+            sc  = severity_score(mk, val)
+            clr = sev_color(sc)
             return (
-                f"<div style='background:#0d1117;border-radius:6px;padding:10px 12px;"
-                f"border:1px solid #1e293b;border-left:2px solid {clr};'>"
-                f"<div style='font-size:0.6rem;color:#475569;text-transform:uppercase;"
-                f"letter-spacing:0.08em;margin-bottom:3px;'>{label}</div>"
-                f"<div style='font-size:1.3rem;font-weight:800;color:{clr};'>"
-                f"{val:{fmt}}{unit}</div>"
-                f"<div style='font-size:0.65rem;color:{d_clr};margin-top:1px;'>"
-                f"{arrow} {abs(delta):.0f}</div></div>"
+                f"<div style='text-align:center;'>"
+                f"<div style='font-size:0.55rem;color:#475569;text-transform:uppercase;"
+                f"letter-spacing:0.06em;margin-bottom:2px;'>{label}</div>"
+                f"<div style='font-size:1.0rem;font-weight:800;color:{clr};'>{val:.0f}</div>"
+                f"</div>"
             )
 
         kpis = (
-            _kpi_cell("Queue",         row["queue_volume"],      ".0f", "",  "queue_volume",      prev["queue_volume"])      +
-            _kpi_cell("AHT",           row["aht_seconds"],       ".0f", "s", "aht_seconds",       prev["aht_seconds"])       +
-            _kpi_cell("Service Level", row["service_level_pct"], ".0f", "%", "service_level_pct", prev["service_level_pct"]) +
-            _kpi_cell("Occupancy",     row["occupancy_pct"],     ".0f", "%", "occupancy_pct",     prev["occupancy_pct"])     +
-            _kpi_cell("Adherence",     row["adherence_pct"],     ".0f", "%", "adherence_pct",     prev["adherence_pct"])
+            _mini_kpi("Queue",    row["queue_volume"],      "queue_volume")      +
+            _mini_kpi("AHT",      row["aht_seconds"],       "aht_seconds")       +
+            _mini_kpi("SL %",     row["service_level_pct"], "service_level_pct") +
+            _mini_kpi("Occ %",    row["occupancy_pct"],     "occupancy_pct")     +
+            _mini_kpi("Adh %",    row["adherence_pct"],     "adherence_pct")
         )
 
         handle_rate = (row["cases_handled"] / row["cases_offered"] * 100
@@ -481,28 +565,44 @@ def render_bu_page(bu: str):
         with col:
             st.markdown(
                 f"<div style='background:#111827;border:1px solid #1e293b;"
-                f"border-top:3px solid {color};border-radius:10px;padding:16px;'>"
-                f"<div style='font-size:1rem;font-weight:800;color:{color};"
-                f"margin-bottom:12px;letter-spacing:0.04em;'>{icon} {ch}</div>"
-                f"<div style='display:grid;grid-template-columns:1fr 1fr;"
-                f"gap:8px;margin-bottom:12px;'>{kpis}</div>"
-                f"<div style='font-size:0.68rem;color:#475569;"
+                f"border-top:3px solid {color};border-radius:10px;"
+                f"padding:12px 14px;margin-bottom:8px;'>"
+                # Header row
+                f"<div style='display:flex;justify-content:space-between;"
+                f"align-items:center;margin-bottom:10px;'>"
+                f"<span style='font-size:0.9rem;font-weight:800;color:{color};'>"
+                f"{short}</span>"
+                f"<span style='font-size:0.7rem;font-weight:700;color:{color};"
+                f"opacity:0.7;'>{act}</span>"
+                f"<span style='font-size:0.58rem;font-weight:800;color:{badge_clr};"
+                f"background:rgba(0,0,0,0.4);padding:2px 6px;"
+                f"border-radius:3px;'>{badge_lbl}</span>"
+                f"</div>"
+                # KPI row
+                f"<div style='display:grid;grid-template-columns:repeat(5,1fr);"
+                f"gap:4px;margin-bottom:10px;background:#0d1117;"
+                f"border-radius:6px;padding:8px 4px;'>"
+                f"{kpis}"
+                f"</div>"
+                # Footer
+                f"<div style='font-size:0.62rem;color:#334155;"
                 f"display:flex;justify-content:space-between;"
-                f"border-top:1px solid #1e293b;padding-top:8px;'>"
-                f"<span>👥 {int(row['agents_logged'])} agents</span>"
-                f"<span>📥 {int(row['cases_offered'])} offered</span>"
-                f"<span>✅ {handle_rate:.0f}% handled</span>"
+                f"border-top:1px solid #1e293b;padding-top:7px;'>"
+                f"<span>👥 {int(row['agents_logged'])}</span>"
+                f"<span>📥 {int(row['cases_offered'])}</span>"
+                f"<span>✅ {handle_rate:.0f}%</span>"
                 f"</div></div>",
                 unsafe_allow_html=True,
             )
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # ── Alert Banners ───────────────────────────────────────────────────────
-    with st.expander("🚨 Alert Status", expanded=True):
-        for ch in CHANNELS:
-            row   = bu_lv[bu_lv["channel"] == ch].iloc[0]
-            color = CHANNEL_COLORS[ch]
+    # ── Alert Status ────────────────────────────────────────────────────────
+    with st.expander("🚨 Alert Status", expanded=False):
+        for act in ACTIVITIES:
+            row   = region_lv[region_lv["activity"] == act].iloc[0]
+            color = ACTIVITY_COLORS[act]
+            short = ACTIVITY_SHORT[act]
             parts = []
             for mk, name, unit in [
                 ("queue_volume",      "Queue", ""),
@@ -514,32 +614,39 @@ def render_bu_page(bu: str):
                 sc  = severity_score(mk, row[mk])
                 clr = sev_color(sc)
                 parts.append(
-                    f"<span style='color:{clr};font-weight:700;'>{sev_label(sc)} "
-                    f"{name}: {row[mk]:.0f}{unit}</span>"
+                    f"<span style='color:{clr};font-weight:700;'>"
+                    f"{sev_label(sc)} {name}: {row[mk]:.0f}{unit}</span>"
                 )
-            sep = "&nbsp;&nbsp;·&nbsp;&nbsp;"
+            sep = "&nbsp;·&nbsp;"
             st.markdown(
                 f"<div style='background:#0d1117;border:1px solid #1e293b;"
                 f"border-left:3px solid {color};border-radius:6px;"
-                f"padding:9px 14px;margin-bottom:6px;font-size:0.8rem;'>"
-                f"<strong style='color:{color};'>{CHANNEL_ICONS[ch]} {ch}</strong>"
-                f"&emsp;&nbsp;{sep.join(parts)}</div>",
+                f"padding:8px 14px;margin-bottom:5px;font-size:0.78rem;'>"
+                f"<strong style='color:{color};margin-right:10px;'>{short}</strong>"
+                f"{sep.join(parts)}</div>",
                 unsafe_allow_html=True,
             )
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # ── Metric Charts ───────────────────────────────────────────────────────
+    # ── Metric Trend Charts ─────────────────────────────────────────────────
+    legend_html = "  ".join(
+        f"<span style='display:inline-flex;align-items:center;gap:5px;'>"
+        f"<span style='width:18px;height:3px;background:{ACTIVITY_COLORS[a]};"
+        f"display:inline-block;border-radius:2px;'></span>"
+        f"<span style='font-size:0.7rem;color:#64748b;'>{ACTIVITY_SHORT[a]}</span></span>"
+        for a in ACTIVITIES
+    )
     st.markdown(
-        f'<p class="section-label">📈 Metric Trends — '
-        f'<span style="color:#38bdf8;">📞 Calls</span> &nbsp;'
-        f'<span style="color:#a78bfa;">💬 Texts</span> &nbsp;'
-        f'<span style="color:#34d399;">📧 Emails</span></p>',
+        f'<p class="section-label">📈 Metric Trends</p>'
+        f"<div style='margin-bottom:10px;'>{legend_html}</div>",
         unsafe_allow_html=True,
     )
 
+    # Row 1: Queue | AHT | Service Level
     r1c1, r1c2, r1c3 = st.columns(3)
-    r2c1, r2c2       = st.columns(2)
+    # Row 2: Occupancy | Adherence
+    r2c1, r2c2 = st.columns(2)
 
     chart_grid = [
         (r1c1, CHART_METRIC_CFG[0]),
@@ -553,6 +660,6 @@ def render_bu_page(bu: str):
         with c:
             st.markdown(f'<p class="section-label">{mname} ({unit})</p>',
                         unsafe_allow_html=True)
-            fig = make_multi_channel_chart(bu, mkey, unit, warn, crit, invert)
+            fig = make_activity_chart(bu, region, mkey, unit, warn, crit, invert)
             st.plotly_chart(fig, use_container_width=True,
                             config={"displayModeBar": False})
