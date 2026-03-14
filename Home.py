@@ -130,8 +130,8 @@ def _region_summary_row(region: str):
 
     # Column layout: region label | CRIT | WARN | OK | Avg SL | Worst Queue | Queue Vol | Occupancy | Adherence
     (label_col, crit_col, warn_col, ok_col,
-     sl_col, worst_col, qvol_col, occ_col, adh_col) = st.columns(
-        [1.2, 0.65, 0.65, 0.65, 0.85, 1.3, 0.85, 0.85, 0.85]
+     sl_col, worst_col, agents_col, qvol_col, occ_col, adh_col) = st.columns(
+        [1.2, 0.65, 0.65, 0.65, 0.85, 1.3, 0.8, 0.8, 0.8, 0.8]
     )
 
     # Region label
@@ -200,9 +200,10 @@ def _region_summary_row(region: str):
 
     # Remaining KPIs
     for col, label, val in [
-        (qvol_col, "Queue Volume",  f"{reg_lv['queue_volume'].sum():.0f}"),
-        (occ_col,  "Occupancy",     f"{reg_lv['occupancy_pct'].mean():.0f}%"),
-        (adh_col,  "Adherence",     f"{reg_lv['adherence_pct'].mean():.0f}%"),
+        (agents_col, "Agents Online", f"{int(reg_lv['agents_logged'].sum())}"),
+        (qvol_col,   "Queue Volume",  f"{reg_lv['queue_volume'].sum():.0f}"),
+        (occ_col,    "Occupancy",     f"{reg_lv['occupancy_pct'].mean():.0f}%"),
+        (adh_col,    "Adherence",     f"{reg_lv['adherence_pct'].mean():.0f}%"),
     ]:
         with col:
             st.markdown(
