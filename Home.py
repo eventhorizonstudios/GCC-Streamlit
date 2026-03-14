@@ -30,47 +30,49 @@ st_autorefresh(interval=POLL_SECS * 1000, key="data_refresh")
 
 st.markdown("""
 <style>
-  .block-container { padding: 0.5rem 1.5rem 1rem !important; }
-  .bu-header {
+    .block-container { padding: 0.5rem 1.5rem 1rem !important; }
+    .bu-header {
     font-size: 1.1rem; font-weight: 900; letter-spacing: 0.08em;
     padding: 10px 0 6px; margin-bottom: 4px; border-bottom: 2px solid;
-  }
-  div[data-testid="stButton"] > button {
+    }
+    div[data-testid="stButton"] > button {
     background: transparent !important; border: none !important;
     color: #334155 !important; padding: 0 4px !important;
     font-size: 0.65rem !important; line-height: 1 !important;
     min-height: 0 !important; height: 18px !important;
-  }
-  div[data-testid="stButton"] > button:hover {
+    }
+    div[data-testid="stButton"] > button:hover {
     color: #38bdf8 !important; background: transparent !important;
-  }
+    }
 
-    /* Segmented control — deselected = red, selected = green */
-
-    /* Deselected state (default) */
-    [data-testid="stSegmentedControl"] button,
-    [data-testid="stSegmentedControl"] [role="radio"],
-    [data-testid="stSegmentedControl"] [role="option"] {
+    /* All buttons default to red (deselected) */
+    [data-testid="stSegmentedControl"] button {
         background: #1a0808 !important;
         color: #ef4444 !important;
         border: 1px solid #ef444440 !important;
         font-weight: 600 !important;
     }
 
-    /* Selected state — try all possible active indicators */
+    /* Selected — covers every known Streamlit attribute variant */
     [data-testid="stSegmentedControl"] button[aria-checked="true"],
+    [data-testid="stSegmentedControl"] button[aria-pressed="true"],
     [data-testid="stSegmentedControl"] button[aria-selected="true"],
+    [data-testid="stSegmentedControl"] button[data-selected="true"],
     [data-testid="stSegmentedControl"] button[data-active="true"],
-    [data-testid="stSegmentedControl"] button.selected,
-    [data-testid="stSegmentedControl"] [aria-checked="true"],
-    [data-testid="stSegmentedControl"] [aria-selected="true"] {
+    [data-testid="stSegmentedControl"] button[data-state="active"],
+    [data-testid="stSegmentedControl"] button[data-state="on"],
+    [data-testid="stSegmentedControl"] button[data-testid="stSegmentedControlActiveOption"] {
         background: #052e16 !important;
         color: #22c55e !important;
         border: 1px solid #22c55e60 !important;
     }
-  [data-testid="stSegmentedControl"] button:hover {
+
+    [data-testid="stSegmentedControl"] button:hover {
+        opacity: 0.85 !important;
+    }
+    [data-testid="stSegmentedControl"] button:hover {
     opacity: 0.85 !important;
-  }
+    }
 </style>
 """, unsafe_allow_html=True)
 
