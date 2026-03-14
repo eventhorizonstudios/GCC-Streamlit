@@ -67,14 +67,14 @@ lv = latest_values()
 # ═══════════════════════════════════════════════════════════════════════════════
 latest_ts = max(st.session_state.prev_msg[qk]["ts"] for qk in QUEUE_KEYS)
 
-title_col, clock_col, btn_col = st.columns([8, 1.5, 0.8])
+title_col, clock_col = st.columns([8, 1.5])
 with title_col:
     st.markdown(
         "<div style='padding:4px 0;'>"
         "<span style='font-size:1.3rem;font-weight:900;color:#38bdf8;"
         "letter-spacing:0.1em;'>📡 GCC</span>"
         "<span style='font-size:0.65rem;color:#334155;margin-left:10px;"
-        "letter-spacing:0.08em;'>GLOBAL COMMAND CENTRE · LIVE MONITOR</span>"
+        "letter-spacing:0.08em;'>GLOBAL CONTACT CENTRE · LIVE MONITOR</span>"
         "</div>",
         unsafe_allow_html=True,
     )
@@ -89,12 +89,6 @@ with clock_col:
         f"</div>",
         unsafe_allow_html=True,
     )
-with btn_col:
-    st.markdown("<div style='height:4px;'></div>", unsafe_allow_html=True)
-    if st.button("⊕ All", key="expand_all", help="Expand all activities"):
-        st.session_state.expanded = set(QUEUE_KEYS)
-        st.rerun()
-
 st.markdown("<hr style='margin:4px 0 8px;border-color:#1e293b;'>", unsafe_allow_html=True)
 
 # ═══════════════════════════════════════════════════════════════════════════════
