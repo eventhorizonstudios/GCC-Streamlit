@@ -33,7 +33,7 @@ st_autorefresh(interval=POLL_SECS * 1000, key="data_refresh")
 # TV-optimised CSS additions
 st.markdown("""
 <style>
-  .block-container { padding: 3rem 1.5rem 1rem !important; }
+  .block-container { padding: 0.5rem 1.5rem 1rem !important; }
   [data-testid="collapsedControl"] { display: none !important; }
   .bu-header {
     font-size: 1.1rem; font-weight: 900; letter-spacing: 0.08em;
