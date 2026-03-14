@@ -6,7 +6,7 @@ Run with:  streamlit run Home.py
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 from utils import (
-    GLOBAL_CSS, BUS, REGIONS, ACTIVITIES, QUEUE_KEYS,
+    GLOBAL_CSS, BUS, REGIONS, ACTIVITIES, QUEUE_KEYS, QK_META,
     BU_COLORS, REGION_COLORS, ACTIVITY_COLORS, ACTIVITY_SHORT,
     CHART_METRIC_CFG, ALL_METRICS, POLL_SECS,
     init_and_tick, latest_values, render_sidebar_status,
@@ -63,26 +63,12 @@ if "expanded" not in st.session_state:
 lv = latest_values()
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# HEADER BAR
+# TITLE BAR
 # ═══════════════════════════════════════════════════════════════════════════════
 latest_ts = max(st.session_state.prev_msg[qk]["ts"] for qk in QUEUE_KEYS)
 
-# Compute queue status counts across all 72 queues
-n_crit = sum(
-    1 for qk in QUEUE_KEYS
-    if max(severity_score(mk, st.session_state.prev_msg[qk][mk]) for mk in ALL_METRICS) >= 1.0
-)
-n_warn = sum(
-    1 for qk in QUEUE_KEYS
-    if max(severity_score(mk, st.session_state.prev_msg[qk][mk]) for mk in ALL_METRICS) == 0.5
-)
-n_ok = len(QUEUE_KEYS) - n_crit - n_warn
-
-hc1, hc2, hc3, hc4, hc5, hc6, hc7, hc8, hc9, hc10, hc11, hc12 = st.columns(
-    [2.8, 1.1, 1.2, 1.1, 1.1, 1.1, 1.1, 0.9, 0.9, 0.9, 0.8, 1.4]
-)
-
-with hc1:
+title_col, clock_col, btn_col = st.columns([8, 1.5, 0.8])
+with title_col:
     st.markdown(
         "<div style='padding:4px 0;'>"
         "<span style='font-size:1.3rem;font-weight:900;color:#38bdf8;"
@@ -92,52 +78,7 @@ with hc1:
         "</div>",
         unsafe_allow_html=True,
     )
-
-# Standard KPIs — AHT removed, labels updated
-kpi_defs = [
-    ("Agents Online",       f"{int(lv['agents_logged'].sum())}",     "#f1f5f9"),
-    ("Total Queue Volume",  f"{lv['queue_volume'].sum():.0f}",        "#f1f5f9"),
-    ("Peak Q Volume",       f"{lv['queue_volume'].max():.0f}",        "#f1f5f9"),
-    ("Avg Svc Level",       f"{lv['service_level_pct'].mean():.0f}%", "#f1f5f9"),
-    ("Occupancy",           f"{lv['occupancy_pct'].mean():.0f}%",     "#f1f5f9"),
-    ("Adherence",           f"{lv['adherence_pct'].mean():.0f}%",     "#f1f5f9"),
-]
-for col, (label, val, val_clr) in zip([hc2, hc3, hc4, hc5, hc6, hc7], kpi_defs):
-    with col:
-        st.markdown(
-            f"<div style='text-align:center;background:#111827;border:1px solid #1e293b;"
-            f"border-radius:8px;padding:5px 4px;'>"
-            f"<div style='font-size:0.55rem;color:#475569;text-transform:uppercase;"
-            f"letter-spacing:0.06em;line-height:1.3;'>{label}</div>"
-            f"<div style='font-size:1.1rem;font-weight:800;color:{val_clr};'>{val}</div>"
-            f"</div>",
-            unsafe_allow_html=True,
-        )
-
-# Queue status counts
-for col, label, count, clr in [
-    (hc8,  "CRIT",  n_crit, "#ef4444"),
-    (hc9,  "WARN",  n_warn, "#f59e0b"),
-    (hc10, "OK",    n_ok,   "#22c55e"),
-]:
-    with col:
-        st.markdown(
-            f"<div style='text-align:center;background:#111827;border:1px solid #1e293b;"
-            f"border-top:2px solid {clr};border-radius:8px;padding:5px 4px;'>"
-            f"<div style='font-size:0.55rem;font-weight:700;color:{clr};"
-            f"text-transform:uppercase;letter-spacing:0.08em;'>{label}</div>"
-            f"<div style='font-size:1.1rem;font-weight:800;color:{clr};'>{count}</div>"
-            f"</div>",
-            unsafe_allow_html=True,
-        )
-
-with hc11:
-    st.markdown("<div style='height:4px;'></div>", unsafe_allow_html=True)
-    if st.button("⊕ All", key="expand_all", help="Expand all activities"):
-        st.session_state.expanded = set(QUEUE_KEYS)
-        st.rerun()
-
-with hc12:
+with clock_col:
     st.markdown(
         f"<div style='text-align:right;padding:4px 0;'>"
         f"<span style='font-size:0.6rem;color:#334155;letter-spacing:0.08em;'>LAST POLL</span><br>"
@@ -148,8 +89,95 @@ with hc12:
         f"</div>",
         unsafe_allow_html=True,
     )
+with btn_col:
+    st.markdown("<div style='height:4px;'></div>", unsafe_allow_html=True)
+    if st.button("⊕ All", key="expand_all", help="Expand all activities"):
+        st.session_state.expanded = set(QUEUE_KEYS)
+        st.rerun()
 
-st.markdown("<hr style='margin:6px 0 10px;border-color:#1e293b;'>", unsafe_allow_html=True)
+st.markdown("<hr style='margin:4px 0 8px;border-color:#1e293b;'>", unsafe_allow_html=True)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# REGION SUMMARY ROWS  (one per region, identical metrics scoped to that region)
+# ═══════════════════════════════════════════════════════════════════════════════
+def _region_summary_row(region: str):
+    reg_color = REGION_COLORS[region]
+    reg_keys  = [qk for qk in QUEUE_KEYS if QK_META[qk]["region"] == region]
+    reg_lv    = lv[lv["region"] == region]
+
+    r_crit = sum(
+        1 for qk in reg_keys
+        if max(severity_score(mk, st.session_state.prev_msg[qk][mk])
+               for mk in ALL_METRICS) >= 1.0
+    )
+    r_warn = sum(
+        1 for qk in reg_keys
+        if max(severity_score(mk, st.session_state.prev_msg[qk][mk])
+               for mk in ALL_METRICS) == 0.5
+    )
+    r_ok = len(reg_keys) - r_crit - r_warn
+
+    kpis = [
+        ("Agents Online",      f"{int(reg_lv['agents_logged'].sum())}"),
+        ("Total Queue Vol",    f"{reg_lv['queue_volume'].sum():.0f}"),
+        ("Peak Q Volume",      f"{reg_lv['queue_volume'].max():.0f}"),
+        ("Avg Svc Level",      f"{reg_lv['service_level_pct'].mean():.0f}%"),
+        ("Occupancy",          f"{reg_lv['occupancy_pct'].mean():.0f}%"),
+        ("Adherence",          f"{reg_lv['adherence_pct'].mean():.0f}%"),
+    ]
+
+    # Region label | 6 KPI tiles | CRIT | WARN | OK
+    label_col, *kpi_cols, crit_col, warn_col, ok_col = st.columns(
+        [1.2, 1, 1, 1, 1, 1, 1, 0.7, 0.7, 0.7]
+    )
+
+    with label_col:
+        st.markdown(
+            f"<div style='background:#111827;border:1px solid #1e293b;"
+            f"border-left:3px solid {reg_color};border-radius:8px;"
+            f"padding:6px 10px;height:100%;'>"
+            f"<div style='font-size:0.6rem;color:#475569;text-transform:uppercase;"
+            f"letter-spacing:0.1em;'>Region</div>"
+            f"<div style='font-size:1rem;font-weight:900;color:{reg_color};'>"
+            f"📍 {region}</div>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+
+    for col, (label, val) in zip(kpi_cols, kpis):
+        with col:
+            st.markdown(
+                f"<div style='text-align:center;background:#111827;"
+                f"border:1px solid #1e293b;border-radius:8px;padding:5px 4px;'>"
+                f"<div style='font-size:0.52rem;color:#475569;text-transform:uppercase;"
+                f"letter-spacing:0.05em;line-height:1.3;'>{label}</div>"
+                f"<div style='font-size:1.05rem;font-weight:800;color:#f1f5f9;'>{val}</div>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+
+    for col, label, count, clr in [
+        (crit_col, "CRIT", r_crit, "#ef4444"),
+        (warn_col, "WARN", r_warn, "#f59e0b"),
+        (ok_col,   "OK",   r_ok,   "#22c55e"),
+    ]:
+        with col:
+            st.markdown(
+                f"<div style='text-align:center;background:#111827;"
+                f"border:1px solid #1e293b;border-top:2px solid {clr};"
+                f"border-radius:8px;padding:5px 4px;'>"
+                f"<div style='font-size:0.52rem;font-weight:700;color:{clr};"
+                f"text-transform:uppercase;letter-spacing:0.07em;'>{label}</div>"
+                f"<div style='font-size:1.05rem;font-weight:800;color:{clr};'>"
+                f"{count}</div>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+
+for region in REGIONS:
+    _region_summary_row(region)
+
+st.markdown("<hr style='margin:8px 0 10px;border-color:#1e293b;'>", unsafe_allow_html=True)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # MAIN GRID — Region tabs × BU sections × 2×3 activity card grid
