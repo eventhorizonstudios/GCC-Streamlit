@@ -213,7 +213,13 @@ def generate_message(qkey: str, prev: dict) -> dict:
     if random.random() < 0.015: a  = min(a  * random.uniform(1.15, 1.4), 500)
     if random.random() < 0.015: sl = max(sl * random.uniform(0.82, 0.93), 50)
 
-    agents  = max(1, p["agents"] + random.randint(-1, 2))
+    # Agents change infrequently — 8% chance per tick of a +1/-1 shift,
+    # otherwise carry the previous value forward for stability.
+    prev_agents = prev.get("agents_logged", p["agents"])
+    if random.random() < 0.08:
+        agents = max(1, prev_agents + random.choice([-1, 1]))
+    else:
+        agents = prev_agents
     offered = random.randint(int(q * 1.4), int(q * 3.0 + 15))
     handled = min(offered, int(offered * random.uniform(0.88, 0.99)))
 
