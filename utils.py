@@ -523,7 +523,8 @@ def make_sl_sparkline(qk: str, color: str, height: int = 90) -> go.Figure:
     fig.add_trace(go.Scatter(
         x=df_q["ts"], y=vals,
         line=dict(color=color, width=2), mode="lines",
-        fill="tozeroy", fillcolor=color.replace("#", "rgba(") + ",0.06)" if color.startswith("#") else color,
+        fill="tozeroy",
+        fillcolor=f"rgba({int(color[1:3],16)},{int(color[3:5],16)},{int(color[5:7],16)},0.06)",
         hovertemplate="%{y:.0f}%<br>%{x|%H:%M:%S}<extra></extra>",
         showlegend=False,
     ))

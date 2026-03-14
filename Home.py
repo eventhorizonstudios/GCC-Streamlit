@@ -40,7 +40,7 @@ st.markdown(GLOBAL_CSS, unsafe_allow_html=True)
 st.markdown("""
 <style>
   /* Tighten block padding for dense TV layout */
-  .block-container { padding: 0.5rem 1.5rem 1rem !important; }
+  .block-container { padding: 3rem 1.5rem 1rem !important; }
 
   /* Activity row hover highlight */
   .act-row:hover { background: #131b2e !important; }
