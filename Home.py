@@ -161,14 +161,15 @@ def _region_summary_row(region: str):
                 unsafe_allow_html=True,
             )
 
-    # Avg SVC Level
-    avg_sl    = reg_lv["service_level_pct"].mean()
-    avg_sl_sc = severity_score("service_level_pct", avg_sl)
+    # Avg SVC Level — coloured border matching severity
+    avg_sl     = reg_lv["service_level_pct"].mean()
+    avg_sl_sc  = severity_score("service_level_pct", avg_sl)
     avg_sl_clr = sev_color(avg_sl_sc)
     with sl_col:
         st.markdown(
             f"<div style='text-align:center;background:#111827;"
-            f"border:1px solid #1e293b;border-radius:8px;padding:5px 4px;'>"
+            f"border:1px solid {avg_sl_clr}55;border-top:2px solid {avg_sl_clr};"
+            f"border-radius:8px;padding:5px 4px;'>"
             f"<div style='font-size:0.52rem;color:#475569;text-transform:uppercase;"
             f"letter-spacing:0.05em;line-height:1.3;'>Avg Svc Level</div>"
             f"<div style='font-size:1.05rem;font-weight:800;color:{avg_sl_clr};'>"
@@ -177,18 +178,25 @@ def _region_summary_row(region: str):
             unsafe_allow_html=True,
         )
 
-    # Worst performing queue by SVC Level
+    # Worst performing queue by SVC Level — BU · Queue · SL% on one line
     with worst_col:
         st.markdown(
-            f"<div style='text-align:center;background:#111827;"
-            f"border:1px solid {worst_sl_clr}55;border-radius:8px;padding:5px 6px;'>"
+            f"<div style='background:#111827;"
+            f"border:1px solid {worst_sl_clr}55;border-top:2px solid {worst_sl_clr};"
+            f"border-radius:8px;padding:5px 8px;'>"
             f"<div style='font-size:0.52rem;color:#475569;text-transform:uppercase;"
-            f"letter-spacing:0.05em;line-height:1.3;'>Worst SL Queue</div>"
-            f"<div style='font-size:0.85rem;font-weight:800;color:{worst_sl_clr};"
-            f"white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>"
-            f"{worst_name}</div>"
-            f"<div style='font-size:0.7rem;color:{worst_sl_clr};'>{worst_sl:.0f}%</div>"
-            f"</div>",
+            f"letter-spacing:0.05em;margin-bottom:3px;'>Worst SL Queue</div>"
+            f"<div style='display:flex;align-items:baseline;gap:5px;"
+            f"flex-wrap:nowrap;overflow:hidden;'>"
+            f"<span style='font-size:0.78rem;font-weight:800;color:{worst_sl_clr};"
+            f"white-space:nowrap;'>{worst_row['bu']}</span>"
+            f"<span style='font-size:0.62rem;color:#475569;'>·</span>"
+            f"<span style='font-size:0.78rem;font-weight:700;color:{worst_sl_clr};"
+            f"white-space:nowrap;flex:1;overflow:hidden;text-overflow:ellipsis;'>"
+            f"{ACTIVITY_SHORT[worst_row['activity']]}</span>"
+            f"<span style='font-size:0.78rem;font-weight:900;color:{worst_sl_clr};"
+            f"white-space:nowrap;margin-left:auto;'>{worst_sl:.0f}%</span>"
+            f"</div></div>",
             unsafe_allow_html=True,
         )
 
