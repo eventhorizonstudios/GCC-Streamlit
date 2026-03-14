@@ -30,7 +30,7 @@ QK_META = {
     for bu in BUS for r in REGIONS for a in QUEUES
 }
 
-QUEUE_SHORT = {f"Queue {i}": f"A{i}" for i in range(1, 7)}
+QUEUE_SHORT = {f"Queue {i}": f"Q{i}" for i in range(1, 7)}
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # COLOURS & DISPLAY
