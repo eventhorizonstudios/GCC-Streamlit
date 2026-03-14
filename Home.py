@@ -279,7 +279,7 @@ fcol1, fcol2, fcol3, fcol4, _ = st.columns([1, 1.4, 1.4, 1.4, 5])
 with fcol1:
     st.markdown(
         "<div style='font-size:0.6rem;color:#475569;text-transform:uppercase;"
-        "letter-spacing:0.1em;padding-top:12px;'>Filter</div>",
+        "letter-spacing:0.1em;padding-top:12px;'>Queue State Filtering</div>",
         unsafe_allow_html=True,
     )
 
