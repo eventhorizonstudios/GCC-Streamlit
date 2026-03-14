@@ -300,10 +300,13 @@ for tab, region in zip(region_tabs, REGIONS):
                                 unsafe_allow_html=True,
                             )
 
-                            # 5 metric charts
-                            chart_cols = st.columns(5)
+                            # 4 metric charts — SL omitted (already visible as sparkline)
+                            non_sl_cfg = [(mk, mn, u, w, c, inv)
+                                          for mk, mn, u, w, c, inv in CHART_METRIC_CFG
+                                          if mk != "service_level_pct"]
+                            chart_cols = st.columns(4)
                             for cc, (mkey, mname, unit, warn, crit, invert) in zip(
-                                chart_cols, CHART_METRIC_CFG
+                                chart_cols, non_sl_cfg
                             ):
                                 with cc:
                                     fig_m = make_single_activity_chart(
