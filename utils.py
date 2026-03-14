@@ -500,6 +500,96 @@ def make_heatmap(lv: pd.DataFrame) -> go.Figure:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# OVERVIEW-SPECIFIC CHART FACTORIES
+# ═══════════════════════════════════════════════════════════════════════════════
+def make_sl_sparkline(qk: str, color: str, height: int = 90) -> go.Figure:
+    """Compact service-level sparkline — no axes, just the coloured line
+    and warn/crit bands. Designed to be read at a glance on a TV screen."""
+    df_q = st.session_state.history[qk]
+    warn, crit = 80, 70
+    vals = df_q["service_level_pct"]
+    y_min = max(min(vals) * 0.92, 0)
+    y_max = min(max(vals) * 1.05, 100)
+
+    fig = go.Figure()
+
+    # Threshold bands
+    fig.add_hrect(y0=crit, y1=warn, fillcolor="#f59e0b", opacity=0.10, line_width=0)
+    fig.add_hrect(y0=y_min, y1=crit, fillcolor="#ef4444", opacity=0.12, line_width=0)
+    fig.add_hline(y=warn, line=dict(color="#f59e0b", dash="dot", width=1), opacity=0.5)
+    fig.add_hline(y=crit, line=dict(color="#ef4444", dash="dot", width=1), opacity=0.5)
+
+    # Line
+    fig.add_trace(go.Scatter(
+        x=df_q["ts"], y=vals,
+        line=dict(color=color, width=2), mode="lines",
+        fill="tozeroy", fillcolor=color.replace("#", "rgba(") + ",0.06)" if color.startswith("#") else color,
+        hovertemplate="%{y:.0f}%<br>%{x|%H:%M:%S}<extra></extra>",
+        showlegend=False,
+    ))
+    # Latest dot
+    fig.add_trace(go.Scatter(
+        x=[df_q["ts"].iloc[-1]], y=[vals.iloc[-1]],
+        mode="markers",
+        marker=dict(color=color, size=6, line=dict(color="#0b0f1a", width=2)),
+        showlegend=False, hoverinfo="skip",
+    ))
+
+    fig.update_layout(
+        paper_bgcolor="#0d1117", plot_bgcolor="#0d1117",
+        margin=dict(l=0, r=0, t=0, b=0),
+        height=height,
+        xaxis=dict(visible=False),
+        yaxis=dict(visible=False, range=[y_min, y_max]),
+        hovermode="x unified",
+    )
+    return fig
+
+
+def make_single_activity_chart(qk: str, metric_key: str, label: str,
+                                unit: str, warn: float, crit: float,
+                                invert: bool, color: str,
+                                height: int = 160) -> go.Figure:
+    """Full metric chart for a single activity queue — used in expanded view."""
+    df_q = st.session_state.history[qk]
+    vals = df_q[metric_key]
+    y_max = max(vals.max() * 1.15, crit * 1.1)
+    y_min = max(vals.min() * 0.88, 0)
+
+    fig = go.Figure()
+    _add_bands(fig, warn, crit, y_min, y_max, invert)
+
+    fig.add_trace(go.Scatter(
+        x=df_q["ts"], y=vals,
+        line=dict(color=color, width=2), mode="lines",
+        fill="tozeroy",
+        fillcolor=f"rgba({int(color[1:3],16)},{int(color[3:5],16)},{int(color[5:7],16)},0.07)",
+        hovertemplate=f"%{{y:.0f}} {unit}<br>%{{x|%H:%M:%S}}<extra></extra>",
+        showlegend=False,
+    ))
+    fig.add_trace(go.Scatter(
+        x=[df_q["ts"].iloc[-1]], y=[vals.iloc[-1]],
+        mode="markers",
+        marker=dict(color=color, size=6, line=dict(color="#0b0f1a", width=2)),
+        showlegend=False, hoverinfo="skip",
+    ))
+
+    fig.update_layout(
+        paper_bgcolor="#0d1117", plot_bgcolor="#0d1117",
+        margin=dict(l=4, r=4, t=20, b=4), height=height,
+        title=dict(text=f"<b>{label}</b>", font=dict(color="#64748b", size=10), x=0.01, y=0.98),
+        xaxis=dict(showgrid=False, zeroline=False,
+                   tickfont=dict(color="#334155", size=8), tickformat="%H:%M"),
+        yaxis=dict(showgrid=True, gridcolor="#1e293b", zeroline=False,
+                   tickfont=dict(color="#334155", size=8),
+                   ticksuffix=f" {unit}"),
+        hovermode="x unified",
+    )
+    return fig
+
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # BU PAGE RENDERER
 # ═══════════════════════════════════════════════════════════════════════════════
 def render_bu_page(bu: str):

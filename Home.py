@@ -1,164 +1,317 @@
 """
-Home.py — GCC Overview page.
-Run with:  streamlit run Home.py
+Home.py — GCC Overview  (TV monitoring display)
+
+Layout:
+  • Sticky header bar — GCC branding + 8 global KPIs + last-poll clock
+  • Body — 4 BU sections stacked vertically, each containing 3 region columns
+    (West / Central / East).  Every region column lists its 6 activities.
+  • Each activity row shows:
+      [status dot]  [name + BU/region]  [latest SL value]  [SL sparkline]
+  • Click the ▶ / ▼ toggle button to expand an activity row and reveal all
+    5 metric charts beneath it.  Click again to collapse.
+  • Multiple activities can be expanded simultaneously.
 """
+
 import time
 import streamlit as st
 from utils import (
-    GLOBAL_CSS, BUS, REGIONS, ACTIVITIES, BU_COLORS, REGION_COLORS,
-    ACTIVITY_COLORS, ACTIVITY_SHORT, REGION_SHORT, ALL_METRICS, QK_META,
-    init_and_tick, latest_values, render_header, render_sidebar_status,
-    severity_score, sev_color, sev_label, make_heatmap, POLL_SECS,
+    GLOBAL_CSS, BUS, REGIONS, ACTIVITIES, QUEUE_KEYS, QK_META,
+    BU_COLORS, REGION_COLORS, ACTIVITY_COLORS, ACTIVITY_SHORT,
+    CHART_METRIC_CFG, ALL_METRICS,
+    init_and_tick, latest_values, render_sidebar_status,
+    severity_score, sev_color, sev_label,
+    make_sl_sparkline, make_single_activity_chart,
+    POLL_SECS, _qk,
 )
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# PAGE CONFIG
+# ═══════════════════════════════════════════════════════════════════════════════
 st.set_page_config(
     page_title="GCC · Overview",
     page_icon="📡",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",   # maximise screen real estate on TV
 )
+
 st.markdown(GLOBAL_CSS, unsafe_allow_html=True)
 
-# ── Data tick ──────────────────────────────────────────────────────────────────
+# Extra TV-optimised CSS
+st.markdown("""
+<style>
+  /* Tighten block padding for dense TV layout */
+  .block-container { padding: 0.5rem 1.5rem 1rem !important; }
+
+  /* Activity row hover highlight */
+  .act-row:hover { background: #131b2e !important; }
+
+  /* Hide sidebar toggle button — TV mode */
+  [data-testid="collapsedControl"] { display: none !important; }
+
+  /* Reduce plotly chart top whitespace */
+  .js-plotly-plot .plotly { margin-top: 0 !important; }
+
+  /* BU section header */
+  .bu-header {
+    font-size: 1.1rem; font-weight: 900; letter-spacing: 0.08em;
+    padding: 10px 0 6px; margin-bottom: 4px;
+    border-bottom: 2px solid;
+  }
+
+  /* Region column header */
+  .region-header {
+    font-size: 0.68rem; font-weight: 700; letter-spacing: 0.12em;
+    text-transform: uppercase; padding: 6px 0 4px;
+    border-bottom: 1px solid #1e293b; margin-bottom: 6px;
+  }
+
+  /* Expand button — ghost style */
+  div[data-testid="stButton"] > button {
+    background: transparent !important;
+    border: none !important;
+    color: #334155 !important;
+    padding: 0 4px !important;
+    font-size: 0.65rem !important;
+    line-height: 1 !important;
+    min-height: 0 !important;
+    height: 18px !important;
+  }
+  div[data-testid="stButton"] > button:hover {
+    color: #38bdf8 !important;
+    background: transparent !important;
+  }
+
+  /* Expanded metric panel */
+  .metric-panel {
+    background: #0d1117;
+    border: 1px solid #1e293b;
+    border-radius: 8px;
+    padding: 12px;
+    margin: 4px 0 10px;
+  }
+</style>
+""", unsafe_allow_html=True)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# DATA TICK + SESSION STATE
+# ═══════════════════════════════════════════════════════════════════════════════
 init_and_tick()
 render_sidebar_status()
 
-# ── Page ───────────────────────────────────────────────────────────────────────
-render_header("OVERVIEW", "4 BUs  ·  3 REGIONS  ·  6 ACTIVITIES  ·  72 QUEUES")
+# Track which activity rows are expanded (set of queue keys)
+if "expanded" not in st.session_state:
+    st.session_state.expanded = set()
+
 lv = latest_values()
 
-# ── Global Summary KPIs ────────────────────────────────────────────────────────
-st.markdown('<p class="section-label">🌐 Global Summary</p>', unsafe_allow_html=True)
-c1, c2, c3, c4, c5, c6, c7, c8 = st.columns(8)
-c1.metric("Total Queues",    "72")
-c2.metric("Total Agents",    f"{int(lv['agents_logged'].sum())}")
-c3.metric("Cases In Queue",  f"{lv['queue_volume'].sum():.0f}")
-c4.metric("Peak Queue",      f"{lv['queue_volume'].max():.0f}")
-c5.metric("Global Avg AHT",  f"{lv['aht_seconds'].mean():.0f}s")
-c6.metric("Global Svc Level",f"{lv['service_level_pct'].mean():.0f}%")
-c7.metric("Global Occupancy",f"{lv['occupancy_pct'].mean():.0f}%")
-c8.metric("Global Adherence",f"{lv['adherence_pct'].mean():.0f}%")
+# ═══════════════════════════════════════════════════════════════════════════════
+# HEADER BAR
+# ═══════════════════════════════════════════════════════════════════════════════
+latest_ts = max(st.session_state.prev_msg[qk]["ts"] for qk in QUEUE_KEYS)
 
-st.markdown("<br>", unsafe_allow_html=True)
+hc1, hc2, hc3, hc4, hc5, hc6, hc7, hc8, hc9, hc10 = st.columns([3, 1, 1, 1, 1, 1, 1, 1, 1, 1.5])
 
-# ── BU Status Roll-up ─────────────────────────────────────────────────────────
-st.markdown('<p class="section-label">🏢 BU Status Roll-up</p>', unsafe_allow_html=True)
-bu_cols = st.columns(4)
+with hc1:
+    st.markdown(
+        "<div style='padding:4px 0;'>"
+        "<span style='font-size:1.3rem;font-weight:900;color:#38bdf8;"
+        "letter-spacing:0.1em;'>📡 GCC</span>"
+        "<span style='font-size:0.65rem;color:#334155;margin-left:10px;"
+        "letter-spacing:0.08em;'>GLOBAL CONTACT CENTRE · LIVE MONITOR</span>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
 
-for col, bu in zip(bu_cols, BUS):
-    bu_rows = lv[lv["bu"] == bu]
-    all_scores = [
-        severity_score(mk, v)
-        for mk in ALL_METRICS
-        for v in bu_rows[mk]
-    ]
-    worst  = max(all_scores) if all_scores else 0
-    bu_clr = sev_color(worst)
-    bu_lbl = sev_label(worst)
-
-    region_html = ""
-    for region in REGIONS:
-        reg_rows  = bu_rows[bu_rows["region"] == region]
-        reg_scores = [severity_score(mk, v) for mk in ALL_METRICS for v in reg_rows[mk]]
-        reg_sc    = max(reg_scores) if reg_scores else 0
-        reg_clr   = sev_color(reg_sc)
-        q_worst   = reg_rows["queue_volume"].max()
-        sl_worst  = reg_rows["service_level_pct"].min()
-        q_sc      = severity_score("queue_volume",      q_worst)
-        sl_sc     = severity_score("service_level_pct", sl_worst)
-        rshort    = REGION_SHORT[region]
-        region_html += (
-            f"<div style='display:flex;justify-content:space-between;"
-            f"align-items:center;padding:5px 0;border-bottom:1px solid #1e293b;'>"
-            f"<span style='font-size:0.75rem;font-weight:600;"
-            f"color:{REGION_COLORS[region]};'>{rshort}</span>"
-            f"<span style='font-size:0.68rem;color:#64748b;'>"
-            f"Q:<b style='color:{sev_color(q_sc)};'>{q_worst:.0f}</b>"
-            f"&nbsp;SL:<b style='color:{sev_color(sl_sc)};'>{sl_worst:.0f}%</b>"
-            f"</span>"
-            f"<span style='font-size:0.65rem;font-weight:800;color:{reg_clr};'>"
-            f"{sev_label(reg_sc)}</span></div>"
-        )
-
-    with col:
-        st.markdown(
-            f"<div style='background:#111827;border:1px solid #1e293b;"
-            f"border-top:3px solid {BU_COLORS[bu]};border-radius:8px;padding:14px;'>"
-            f"<div style='display:flex;justify-content:space-between;"
-            f"align-items:center;margin-bottom:10px;'>"
-            f"<span style='font-size:1.05rem;font-weight:900;color:{BU_COLORS[bu]};'>"
-            f"{bu}</span>"
-            f"<span style='font-size:0.65rem;font-weight:800;color:{bu_clr};"
-            f"background:rgba(0,0,0,0.4);padding:3px 8px;border-radius:4px;'>"
-            f"{bu_lbl}</span></div>"
-            f"{region_html}</div>",
-            unsafe_allow_html=True,
-        )
-
-st.markdown("<br>", unsafe_allow_html=True)
-
-# ── Worst Performers ──────────────────────────────────────────────────────────
-st.markdown('<p class="section-label">🚨 Worst Performers — live ranked across all 72 queues</p>',
-            unsafe_allow_html=True)
-
-wp_panels = [
-    ("queue_volume",      "📥 Queue Volume",  "cases", False),
-    ("aht_seconds",       "⏱ AHT",            "s",     False),
-    ("service_level_pct", "📶 Service Level",  "%",     True),
-    ("occupancy_pct",     "🔥 Occupancy",      "%",     False),
-    ("adherence_pct",     "📋 Adherence",      "%",     True),
+kpi_defs = [
+    ("Agents",    f"{int(lv['agents_logged'].sum())}"),
+    ("In Queue",  f"{lv['queue_volume'].sum():.0f}"),
+    ("Peak Q",    f"{lv['queue_volume'].max():.0f}"),
+    ("Avg AHT",   f"{lv['aht_seconds'].mean():.0f}s"),
+    ("Svc Level", f"{lv['service_level_pct'].mean():.0f}%"),
+    ("Occupancy", f"{lv['occupancy_pct'].mean():.0f}%"),
+    ("Adherence", f"{lv['adherence_pct'].mean():.0f}%"),
 ]
-wp_cols = st.columns(5)
-
-for col, (mkey, mname, unit, invert) in zip(wp_cols, wp_panels):
+for col, (label, val) in zip([hc2, hc3, hc4, hc5, hc6, hc7, hc8], kpi_defs):
     with col:
         st.markdown(
-            f"<p style='font-size:0.65rem;font-weight:700;letter-spacing:0.12em;"
-            f"color:#64748b;text-transform:uppercase;margin-bottom:8px;'>{mname}</p>",
+            f"<div style='text-align:center;background:#111827;border:1px solid #1e293b;"
+            f"border-radius:8px;padding:5px 4px;'>"
+            f"<div style='font-size:0.58rem;color:#475569;text-transform:uppercase;"
+            f"letter-spacing:0.07em;'>{label}</div>"
+            f"<div style='font-size:1.1rem;font-weight:800;color:#f1f5f9;'>{val}</div>"
+            f"</div>",
             unsafe_allow_html=True,
         )
-        ranked = lv.nsmallest(5, mkey) if invert else lv.nlargest(5, mkey)
-        for rank, (_, row) in enumerate(ranked.iterrows(), 1):
-            val      = row[mkey]
-            score    = severity_score(mkey, val)
-            clr      = sev_color(score)
-            lbl      = sev_label(score)
-            bu_clr   = BU_COLORS[row["bu"]]
-            act_clr  = ACTIVITY_COLORS[row["activity"]]
-            ashort   = ACTIVITY_SHORT[row["activity"]]
-            rshort   = REGION_SHORT[row["region"]]
+
+with hc9:
+    # Collapse-all / expand-all controls
+    st.markdown("<div style='height:4px;'></div>", unsafe_allow_html=True)
+    if st.button("⊕ All", key="expand_all", help="Expand all activities"):
+        st.session_state.expanded = set(QUEUE_KEYS)
+        st.rerun()
+
+with hc10:
+    st.markdown(
+        f"<div style='text-align:right;padding:4px 0;'>"
+        f"<span style='font-size:0.6rem;color:#334155;letter-spacing:0.08em;'>LAST POLL</span><br>"
+        f"<span style='font-size:1rem;font-weight:800;color:#38bdf8;'>"
+        f"{latest_ts.strftime('%H:%M:%S')}</span>"
+        f"<span style='font-size:0.6rem;color:#1e293b;margin-left:6px;'>"
+        f"#{st.session_state.tick}</span>"
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+
+st.markdown("<hr style='margin:6px 0 10px;border-color:#1e293b;'>", unsafe_allow_html=True)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MAIN GRID — BU sections × Region columns × Activity rows
+# ═══════════════════════════════════════════════════════════════════════════════
+for bu in BUS:
+    bu_color = BU_COLORS[bu]
+
+    # BU header
+    st.markdown(
+        f"<div class='bu-header' style='color:{bu_color};"
+        f"border-color:{bu_color}33;'>{bu}</div>",
+        unsafe_allow_html=True,
+    )
+
+    # 3 region columns
+    reg_cols = st.columns(3)
+
+    for reg_col, region in zip(reg_cols, REGIONS):
+        reg_color = REGION_COLORS[region]
+
+        with reg_col:
+            # Region header
             st.markdown(
-                f"<div style='background:#0d1117;border:1px solid #1e293b;"
-                f"border-left:3px solid {clr};border-radius:6px;"
-                f"padding:8px 10px;margin-bottom:5px;'>"
-                f"<div style='display:flex;justify-content:space-between;"
-                f"align-items:center;margin-bottom:2px;'>"
-                f"<span style='font-size:0.75rem;font-weight:700;color:{bu_clr};'>"
-                f"#{rank} {row['bu']}</span>"
-                f"<span style='font-size:0.58rem;font-weight:800;color:{clr};"
-                f"background:rgba(0,0,0,0.4);padding:2px 5px;border-radius:3px;'>"
-                f"{lbl}</span></div>"
-                f"<div style='display:flex;justify-content:space-between;"
-                f"align-items:baseline;'>"
-                f"<span style='font-size:0.68rem;color:#475569;'>"
-                f"{rshort} · <span style='color:{act_clr};'>{ashort}</span></span>"
-                f"<span style='font-size:1.1rem;font-weight:800;color:{clr};'>{val:.0f}"
-                f"<span style='font-size:0.62rem;font-weight:400;color:#64748b;'> {unit}</span>"
-                f"</span></div></div>",
+                f"<div class='region-header' style='color:{reg_color};'>"
+                f"📍 {region}</div>",
                 unsafe_allow_html=True,
             )
 
-st.markdown("<br>", unsafe_allow_html=True)
+            # 6 activity rows
+            for activity in ACTIVITIES:
+                qk        = _qk(bu, region, activity)
+                row_data  = lv[lv["queue_key"] == qk].iloc[0]
+                act_color = ACTIVITY_COLORS[activity]
+                short     = ACTIVITY_SHORT[activity]
+                sl_val    = row_data["service_level_pct"]
+                sl_sc     = severity_score("service_level_pct", sl_val)
+                dot_clr   = sev_color(sl_sc)
+                is_exp    = qk in st.session_state.expanded
 
-# ── Health Heatmap ────────────────────────────────────────────────────────────
-st.markdown(
-    '<p class="section-label">🗺 Region Health Heatmap — 12 regions × 5 metrics '
-    '(worst activity per cell)</p>',
-    unsafe_allow_html=True,
-)
-st.plotly_chart(make_heatmap(lv), use_container_width=True,
-                config={"displayModeBar": False})
+                # ── Activity row ──────────────────────────────────────────────
+                # Status dot | short name | SL value | toggle button
+                rc1, rc2, rc3, rc4 = st.columns([0.15, 0.55, 0.5, 0.2])
 
-# ── Auto-refresh ──────────────────────────────────────────────────────────────
+                with rc1:
+                    st.markdown(
+                        f"<div style='padding-top:38px;text-align:center;'>"
+                        f"<span style='display:inline-block;width:9px;height:9px;"
+                        f"border-radius:50%;background:{dot_clr};'></span>"
+                        f"</div>",
+                        unsafe_allow_html=True,
+                    )
+
+                with rc2:
+                    st.markdown(
+                        f"<div style='padding-top:30px;'>"
+                        f"<span style='font-size:0.8rem;font-weight:700;"
+                        f"color:{act_color};'>{short}</span>"
+                        f"<span style='font-size:0.62rem;color:#334155;"
+                        f"margin-left:5px;'>{activity}</span>"
+                        f"</div>",
+                        unsafe_allow_html=True,
+                    )
+
+                with rc3:
+                    # SL sparkline — the main always-visible element
+                    fig_sl = make_sl_sparkline(qk, act_color, height=72)
+                    st.plotly_chart(
+                        fig_sl, use_container_width=True,
+                        config={"displayModeBar": False},
+                        key=f"sl_{qk}",
+                    )
+
+                with rc4:
+                    # SL current value + toggle button
+                    sl_color_val = sev_color(sl_sc)
+                    st.markdown(
+                        f"<div style='text-align:center;padding-top:10px;'>"
+                        f"<div style='font-size:1.3rem;font-weight:900;"
+                        f"color:{sl_color_val};line-height:1;'>{sl_val:.0f}%</div>"
+                        f"<div style='font-size:0.55rem;color:#334155;"
+                        f"text-transform:uppercase;letter-spacing:0.05em;'>SL</div>"
+                        f"</div>",
+                        unsafe_allow_html=True,
+                    )
+                    toggle_label = "▼ hide" if is_exp else "▶ expand"
+                    if st.button(toggle_label, key=f"tog_{qk}"):
+                        if is_exp:
+                            st.session_state.expanded.discard(qk)
+                        else:
+                            st.session_state.expanded.add(qk)
+                        st.rerun()
+
+                # ── Expanded metric panel ─────────────────────────────────────
+                if is_exp:
+                    # Compute overall worst score for highlight colour
+                    all_sc  = max(severity_score(mk, row_data[mk]) for mk in ALL_METRICS)
+                    hdr_clr = sev_color(all_sc)
+
+                    # Alert summary bar
+                    alert_parts = []
+                    for mk, mname, unit in [
+                        ("queue_volume",      "Q",   ""),
+                        ("aht_seconds",       "AHT", "s"),
+                        ("service_level_pct", "SL",  "%"),
+                        ("occupancy_pct",     "Occ", "%"),
+                        ("adherence_pct",     "Adh", "%"),
+                    ]:
+                        sc  = severity_score(mk, row_data[mk])
+                        clr = sev_color(sc)
+                        lbl = sev_label(sc)
+                        alert_parts.append(
+                            f"<span style='color:{clr};font-size:0.72rem;"
+                            f"font-weight:700;'>{lbl} {mname}:"
+                            f"<b>{row_data[mk]:.0f}{unit}</b></span>"
+                        )
+                    sep = "&nbsp;<span style='color:#1e293b;'>|</span>&nbsp;"
+
+                    st.markdown(
+                        f"<div style='background:#0d1117;border:1px solid {hdr_clr}33;"
+                        f"border-left:3px solid {hdr_clr};border-radius:6px;"
+                        f"padding:7px 12px;margin:2px 0 8px;'>"
+                        f"<span style='font-size:0.72rem;font-weight:800;"
+                        f"color:{act_color};margin-right:10px;'>{short} · {activity}</span>"
+                        f"{sep.join(alert_parts)}"
+                        f"</div>",
+                        unsafe_allow_html=True,
+                    )
+
+                    # 5 metric charts in a single row
+                    chart_cols = st.columns(5)
+                    for cc, (mkey, mname, unit, warn, crit, invert) in zip(
+                        chart_cols, CHART_METRIC_CFG
+                    ):
+                        with cc:
+                            fig_m = make_single_activity_chart(
+                                qk, mkey, mname, unit,
+                                warn, crit, invert,
+                                act_color, height=155,
+                            )
+                            st.plotly_chart(
+                                fig_m, use_container_width=True,
+                                config={"displayModeBar": False},
+                                key=f"m_{qk}_{mkey}",
+                            )
+
+    st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# AUTO-REFRESH
+# ═══════════════════════════════════════════════════════════════════════════════
 time.sleep(1)
 st.rerun()
