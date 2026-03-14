@@ -409,8 +409,8 @@ for tab, region in zip(region_tabs, REGIONS):
 
                             # Metric tiles row — one card per metric
                             metric_defs = [
-                                ("service_level_pct", "Service Level","%"),
                                 ("agents_logged",     "Agents Online",""),
+                                ("service_level_pct", "Service Level","%"),
                                 ("queue_volume",      "Queue Volume", ""),
                                 ("aht_seconds",       "AHT",          "s"),
                                 ("occupancy_pct",     "Occupancy",    "%"),
