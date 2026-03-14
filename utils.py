@@ -592,25 +592,32 @@ def make_single_activity_chart(qk: str, metric_key: str, label: str,
 
 def make_plain_chart(qk: str, metric_key: str, label: str, unit: str,
                      color: str, height: int = 160) -> go.Figure:
-    """Simple line chart with no threshold bands — used for metrics like agents_logged."""
+    """Step chart for discrete metrics like agents_logged — honest representation
+    of values that change in steps rather than smoothly."""
     df_q = st.session_state.history[qk]
     vals = df_q[metric_key]
-    y_max = max(vals.max() * 1.2, 1)
-    y_min = max(vals.min() * 0.8, 0)
+    y_max = max(vals.max() * 1.25, 1)
+    y_min = max(vals.min() * 0.75, 0)
+    rgba  = f"rgba({int(color[1:3],16)},{int(color[3:5],16)},{int(color[5:7],16)},0.15)"
 
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=df_q["ts"], y=vals,
-        line=dict(color=color, width=2), mode="lines",
+        line=dict(color=color, width=2, shape="hv"),
+        mode="lines",
         fill="tozeroy",
-        fillcolor=f"rgba({int(color[1:3],16)},{int(color[3:5],16)},{int(color[5:7],16)},0.07)",
+        fillcolor=rgba,
         hovertemplate=f"%{{y:.0f}} {unit}<br>%{{x|%H:%M:%S}}<extra></extra>",
         showlegend=False,
     ))
+    # Latest value dot
     fig.add_trace(go.Scatter(
         x=[df_q["ts"].iloc[-1]], y=[vals.iloc[-1]],
-        mode="markers",
-        marker=dict(color=color, size=6, line=dict(color="#0b0f1a", width=2)),
+        mode="markers+text",
+        marker=dict(color=color, size=8, line=dict(color="#0b0f1a", width=2)),
+        text=[f"{int(vals.iloc[-1])}"],
+        textposition="top center",
+        textfont=dict(color=color, size=10, family="monospace"),
         showlegend=False, hoverinfo="skip",
     ))
     fig.update_layout(
@@ -621,7 +628,7 @@ def make_plain_chart(qk: str, metric_key: str, label: str, unit: str,
                    tickfont=dict(color="#334155", size=8), tickformat="%H:%M"),
         yaxis=dict(showgrid=True, gridcolor="#1e293b", zeroline=False,
                    tickfont=dict(color="#334155", size=8),
-                   ticksuffix=f" {unit}", range=[y_min, y_max]),
+                   tickformat="d", range=[y_min, y_max]),
         hovermode="x unified",
     )
     return fig
