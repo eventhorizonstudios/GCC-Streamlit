@@ -105,6 +105,7 @@ def _region_summary_row(region: str):
     reg_keys  = [qk for qk in QUEUE_KEYS if QK_META[qk]["region"] == region]
     reg_lv    = lv[lv["region"] == region]
 
+    # Status counts
     r_crit = sum(
         1 for qk in reg_keys
         if max(severity_score(mk, st.session_state.prev_msg[qk][mk])
@@ -117,26 +118,29 @@ def _region_summary_row(region: str):
     )
     r_ok = len(reg_keys) - r_crit - r_warn
 
-    kpis = [
-        ("Agents Online",      f"{int(reg_lv['agents_logged'].sum())}"),
-        ("Total Queue Vol",    f"{reg_lv['queue_volume'].sum():.0f}"),
-        ("Peak Q Volume",      f"{reg_lv['queue_volume'].max():.0f}"),
-        ("Avg Svc Level",      f"{reg_lv['service_level_pct'].mean():.0f}%"),
-        ("Occupancy",          f"{reg_lv['occupancy_pct'].mean():.0f}%"),
-        ("Adherence",          f"{reg_lv['adherence_pct'].mean():.0f}%"),
-    ]
+    # Worst queue by SVC Level in this region
+    worst_row  = reg_lv.loc[reg_lv["service_level_pct"].idxmin()]
+    worst_sl   = worst_row["service_level_pct"]
+    worst_name = (
+        f"{worst_row['bu']} · "
+        f"{ACTIVITY_SHORT[worst_row['activity']]}"
+    )
+    worst_sl_sc  = severity_score("service_level_pct", worst_sl)
+    worst_sl_clr = sev_color(worst_sl_sc)
 
-    # Region label | 6 KPI tiles | CRIT | WARN | OK
-    label_col, *kpi_cols, crit_col, warn_col, ok_col = st.columns(
-        [1.2, 1, 1, 1, 1, 1, 1, 0.7, 0.7, 0.7]
+    # Column layout: region label | CRIT | WARN | OK | Avg SL | Worst Queue | Queue Vol | Occupancy | Adherence
+    (label_col, crit_col, warn_col, ok_col,
+     sl_col, worst_col, qvol_col, occ_col, adh_col) = st.columns(
+        [1.2, 0.65, 0.65, 0.65, 0.85, 1.3, 0.85, 0.85, 0.85]
     )
 
+    # Region label
     with label_col:
         st.markdown(
             f"<div style='background:#111827;border:1px solid #1e293b;"
             f"border-left:3px solid {reg_color};border-radius:8px;"
-            f"padding:6px 10px;height:100%;'>"
-            f"<div style='font-size:0.6rem;color:#475569;text-transform:uppercase;"
+            f"padding:6px 10px;'>"
+            f"<div style='font-size:0.58rem;color:#475569;text-transform:uppercase;"
             f"letter-spacing:0.1em;'>Region</div>"
             f"<div style='font-size:1rem;font-weight:900;color:{reg_color};'>"
             f"📍 {region}</div>"
@@ -144,18 +148,7 @@ def _region_summary_row(region: str):
             unsafe_allow_html=True,
         )
 
-    for col, (label, val) in zip(kpi_cols, kpis):
-        with col:
-            st.markdown(
-                f"<div style='text-align:center;background:#111827;"
-                f"border:1px solid #1e293b;border-radius:8px;padding:5px 4px;'>"
-                f"<div style='font-size:0.52rem;color:#475569;text-transform:uppercase;"
-                f"letter-spacing:0.05em;line-height:1.3;'>{label}</div>"
-                f"<div style='font-size:1.05rem;font-weight:800;color:#f1f5f9;'>{val}</div>"
-                f"</div>",
-                unsafe_allow_html=True,
-            )
-
+    # CRIT / WARN / OK status tiles
     for col, label, count, clr in [
         (crit_col, "CRIT", r_crit, "#ef4444"),
         (warn_col, "WARN", r_warn, "#f59e0b"),
@@ -170,6 +163,54 @@ def _region_summary_row(region: str):
                 f"text-transform:uppercase;letter-spacing:0.07em;'>{label}</div>"
                 f"<div style='font-size:1.05rem;font-weight:800;color:{clr};'>"
                 f"{count}</div>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+
+    # Avg SVC Level
+    avg_sl    = reg_lv["service_level_pct"].mean()
+    avg_sl_sc = severity_score("service_level_pct", avg_sl)
+    avg_sl_clr = sev_color(avg_sl_sc)
+    with sl_col:
+        st.markdown(
+            f"<div style='text-align:center;background:#111827;"
+            f"border:1px solid #1e293b;border-radius:8px;padding:5px 4px;'>"
+            f"<div style='font-size:0.52rem;color:#475569;text-transform:uppercase;"
+            f"letter-spacing:0.05em;line-height:1.3;'>Avg Svc Level</div>"
+            f"<div style='font-size:1.05rem;font-weight:800;color:{avg_sl_clr};'>"
+            f"{avg_sl:.0f}%</div>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+
+    # Worst performing queue by SVC Level
+    with worst_col:
+        st.markdown(
+            f"<div style='text-align:center;background:#111827;"
+            f"border:1px solid {worst_sl_clr}55;border-radius:8px;padding:5px 6px;'>"
+            f"<div style='font-size:0.52rem;color:#475569;text-transform:uppercase;"
+            f"letter-spacing:0.05em;line-height:1.3;'>Worst SL Queue</div>"
+            f"<div style='font-size:0.85rem;font-weight:800;color:{worst_sl_clr};"
+            f"white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>"
+            f"{worst_name}</div>"
+            f"<div style='font-size:0.7rem;color:{worst_sl_clr};'>{worst_sl:.0f}%</div>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+
+    # Remaining KPIs
+    for col, label, val in [
+        (qvol_col, "Queue Volume",  f"{reg_lv['queue_volume'].sum():.0f}"),
+        (occ_col,  "Occupancy",     f"{reg_lv['occupancy_pct'].mean():.0f}%"),
+        (adh_col,  "Adherence",     f"{reg_lv['adherence_pct'].mean():.0f}%"),
+    ]:
+        with col:
+            st.markdown(
+                f"<div style='text-align:center;background:#111827;"
+                f"border:1px solid #1e293b;border-radius:8px;padding:5px 4px;'>"
+                f"<div style='font-size:0.52rem;color:#475569;text-transform:uppercase;"
+                f"letter-spacing:0.05em;line-height:1.3;'>{label}</div>"
+                f"<div style='font-size:1.05rem;font-weight:800;color:#f1f5f9;'>{val}</div>"
                 f"</div>",
                 unsafe_allow_html=True,
             )
