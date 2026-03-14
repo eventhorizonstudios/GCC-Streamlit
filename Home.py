@@ -11,7 +11,7 @@ from utils import (
     CHART_METRIC_CFG, ALL_METRICS, POLL_SECS,
     init_and_tick, latest_values, render_sidebar_status,
     severity_score, sev_color, sev_label,
-    make_sl_sparkline, make_single_activity_chart,
+    make_sl_sparkline, make_single_activity_chart, make_plain_chart,
     _qk,
 )
 
@@ -345,15 +345,25 @@ for tab, region in zip(region_tabs, REGIONS):
                                 unsafe_allow_html=True,
                             )
 
-                            # 4 metric charts — SL omitted (shown as sparkline above)
+                            # 4 metric charts (SL omitted — shown as sparkline) + Agents Online
                             non_sl_cfg = [
                                 (mk, mn, u, w, c, inv)
                                 for mk, mn, u, w, c, inv in CHART_METRIC_CFG
                                 if mk != "service_level_pct"
                             ]
-                            chart_cols = st.columns(4)
+                            chart_cols = st.columns(5)
+                            with chart_cols[0]:
+                                fig_ag = make_plain_chart(
+                                    qk, "agents_logged", "Agents Online", "",
+                                    act_color, height=155,
+                                )
+                                st.plotly_chart(
+                                    fig_ag, use_container_width=True,
+                                    config={"displayModeBar": False},
+                                    key=f"m_{qk}_agents",
+                                )
                             for cc, (mkey, mname, unit, warn, crit, invert) in zip(
-                                chart_cols, non_sl_cfg
+                                chart_cols[1:], non_sl_cfg
                             ):
                                 with cc:
                                     fig_m = make_single_activity_chart(

@@ -590,6 +590,44 @@ def make_single_activity_chart(qk: str, metric_key: str, label: str,
 
 
 
+def make_plain_chart(qk: str, metric_key: str, label: str, unit: str,
+                     color: str, height: int = 160) -> go.Figure:
+    """Simple line chart with no threshold bands — used for metrics like agents_logged."""
+    df_q = st.session_state.history[qk]
+    vals = df_q[metric_key]
+    y_max = max(vals.max() * 1.2, 1)
+    y_min = max(vals.min() * 0.8, 0)
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=df_q["ts"], y=vals,
+        line=dict(color=color, width=2), mode="lines",
+        fill="tozeroy",
+        fillcolor=f"rgba({int(color[1:3],16)},{int(color[3:5],16)},{int(color[5:7],16)},0.07)",
+        hovertemplate=f"%{{y:.0f}} {unit}<br>%{{x|%H:%M:%S}}<extra></extra>",
+        showlegend=False,
+    ))
+    fig.add_trace(go.Scatter(
+        x=[df_q["ts"].iloc[-1]], y=[vals.iloc[-1]],
+        mode="markers",
+        marker=dict(color=color, size=6, line=dict(color="#0b0f1a", width=2)),
+        showlegend=False, hoverinfo="skip",
+    ))
+    fig.update_layout(
+        paper_bgcolor="#0d1117", plot_bgcolor="#0d1117",
+        margin=dict(l=4, r=4, t=20, b=4), height=height,
+        title=dict(text=f"<b>{label}</b>", font=dict(color="#64748b", size=10), x=0.01, y=0.98),
+        xaxis=dict(showgrid=False, zeroline=False,
+                   tickfont=dict(color="#334155", size=8), tickformat="%H:%M"),
+        yaxis=dict(showgrid=True, gridcolor="#1e293b", zeroline=False,
+                   tickfont=dict(color="#334155", size=8),
+                   ticksuffix=f" {unit}", range=[y_min, y_max]),
+        hovermode="x unified",
+    )
+    return fig
+
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # BU PAGE RENDERER
 # ═══════════════════════════════════════════════════════════════════════════════
