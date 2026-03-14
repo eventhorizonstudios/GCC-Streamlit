@@ -17,6 +17,9 @@ from utils import (
     _qk,
 )
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# PAGE CONFIG
+# ═══════════════════════════════════════════════════════════════════════════════
 st.set_page_config(
     page_title="GCC · Overview",
     page_icon="📡",
@@ -26,60 +29,57 @@ st.set_page_config(
 )
 
 st.markdown(GLOBAL_CSS, unsafe_allow_html=True)
+
+# Non-blocking refresh — no sleep, button clicks remain instant
 st_autorefresh(interval=POLL_SECS * 1000, key="data_refresh")
 
+# TV-optimised CSS additions
 st.markdown("""
 <style>
-    .block-container { padding: 0.5rem 1.5rem 1rem !important; }
-    .bu-header {
+  .block-container { padding: 0.5rem 1.5rem 1rem !important; }
+  .bu-header {
     font-size: 1.1rem; font-weight: 900; letter-spacing: 0.08em;
     padding: 10px 0 6px; margin-bottom: 4px; border-bottom: 2px solid;
-    }
-    div[data-testid="stButton"] > button {
+  }
+  div[data-testid="stButton"] > button {
     background: transparent !important; border: none !important;
     color: #334155 !important; padding: 0 4px !important;
     font-size: 0.65rem !important; line-height: 1 !important;
     min-height: 0 !important; height: 18px !important;
-    }
-    div[data-testid="stButton"] > button:hover {
+  }
+  div[data-testid="stButton"] > button:hover {
     color: #38bdf8 !important; background: transparent !important;
-    }
+  }
 
-    /* All buttons default to red (deselected) */
-    [data-testid="stSegmentedControl"] button {
-        background: #1a0808 !important;
-        color: #ef4444 !important;
-        border: 1px solid #ef444440 !important;
-        font-weight: 600 !important;
-    }
-
-    /* Selected — covers every known Streamlit attribute variant */
-    [data-testid="stSegmentedControl"] button[aria-checked="true"],
-    [data-testid="stSegmentedControl"] button[aria-pressed="true"],
-    [data-testid="stSegmentedControl"] button[aria-selected="true"],
-    [data-testid="stSegmentedControl"] button[data-selected="true"],
-    [data-testid="stSegmentedControl"] button[data-active="true"],
-    [data-testid="stSegmentedControl"] button[data-state="active"],
-    [data-testid="stSegmentedControl"] button[data-state="on"],
-    [data-testid="stSegmentedControl"] button[data-testid="stSegmentedControlActiveOption"] {
-        background: #052e16 !important;
-        color: #22c55e !important;
-        border: 1px solid #22c55e60 !important;
-    }
-
-    [data-testid="stSegmentedControl"] button:hover {
-        opacity: 0.85 !important;
-    }
-    [data-testid="stSegmentedControl"] button:hover {
+  /* Pills filter — deselected = red, selected = green */
+  [data-testid="stPills"] button {
+    background: #1a0808 !important;
+    color: #ef4444 !important;
+    border: 1px solid #ef444440 !important;
+    font-weight: 600 !important;
+  }
+  [data-testid="stPills"] button[data-selected="true"],
+  [data-testid="stPills"] button[aria-selected="true"],
+  [data-testid="stPills"] button[aria-pressed="true"],
+  [data-testid="stPills"] button[aria-checked="true"] {
+    background: #052e16 !important;
+    color: #22c55e !important;
+    border: 1px solid #22c55e60 !important;
+  }
+  [data-testid="stPills"] button:hover {
     opacity: 0.85 !important;
-    }
+  }
 </style>
 """, unsafe_allow_html=True)
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# DATA
+# ═══════════════════════════════════════════════════════════════════════════════
 init_and_tick()
 if "expanded" not in st.session_state:
     st.session_state.expanded = set()
 
+# Timezone mapping for region summary clocks
 REGION_TZ = {
     "West":    ZoneInfo("America/Chicago"),
     "Central": ZoneInfo("Europe/Tallinn"),
@@ -87,6 +87,7 @@ REGION_TZ = {
 }
 
 def _passes_filter(qk: str, sl_filter: list) -> bool:
+    """Return True if this queue matches any of the selected severity filters."""
     sc = severity_score("service_level_pct",
                         st.session_state.prev_msg[qk]["service_level_pct"])
     if "🔴 Critical" in sl_filter and sc >= 1.0: return True
@@ -94,6 +95,7 @@ def _passes_filter(qk: str, sl_filter: list) -> bool:
     if "🟢 OK"       in sl_filter and sc == 0.0: return True
     return False
 
+# Pre-computed once — SL excluded from expansion charts (shown as sparkline)
 NON_SL_CFG = [
     (mk, mn, u, w, c, inv)
     for mk, mn, u, w, c, inv in CHART_METRIC_CFG
@@ -102,7 +104,9 @@ NON_SL_CFG = [
 
 lv = latest_values()
 
-# ── Title bar ──────────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════════
+# TITLE BAR
+# ═══════════════════════════════════════════════════════════════════════════════
 latest_ts = max(st.session_state.prev_msg[qk]["ts"] for qk in QUEUE_KEYS)
 
 title_col, clock_col = st.columns([8, 1.5])
@@ -130,12 +134,15 @@ with clock_col:
     )
 st.markdown("<hr style='margin:4px 0 8px;border-color:#1e293b;'>", unsafe_allow_html=True)
 
-# ── Region summary rows ────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════════
+# REGION SUMMARY ROWS
+# ═══════════════════════════════════════════════════════════════════════════════
 def _region_summary_row(region: str):
     reg_color = REGION_COLORS[region]
     reg_keys  = [qk for qk in QUEUE_KEYS if QK_META[qk]["region"] == region]
     reg_lv    = lv[lv["region"] == region]
 
+    # Status counts — scoped to SVC Level only
     r_crit = sum(
         1 for qk in reg_keys
         if severity_score("service_level_pct",
@@ -148,6 +155,7 @@ def _region_summary_row(region: str):
     )
     r_ok = len(reg_keys) - r_crit - r_warn
 
+    # Worst queue by SVC Level in this region
     worst_row    = reg_lv.loc[reg_lv["service_level_pct"].idxmin()]
     worst_sl     = worst_row["service_level_pct"]
     worst_sl_sc  = severity_score("service_level_pct", worst_sl)
@@ -158,6 +166,7 @@ def _region_summary_row(region: str):
         [1.2, 0.65, 0.65, 0.65, 0.85, 0.85, 0.8, 0.8, 0.8, 0.8]
     )
 
+    # Region label + local clock
     local_dt   = datetime.now(REGION_TZ[region])
     local_date = local_dt.strftime('%d/%m/%Y')
     local_time = local_dt.strftime('%H:%M:%S')
@@ -165,20 +174,24 @@ def _region_summary_row(region: str):
         st.markdown(
             f"<div style='background:#111827;border:1px solid #1e293b;"
             f"border-left:3px solid {reg_color};border-radius:8px;"
-            f"padding:6px 10px;display:flex;justify-content:space-between;align-items:center;'>"
+            f"padding:6px 10px;display:flex;justify-content:space-between;"
+            f"align-items:center;'>"
             f"<div>"
             f"<div style='font-size:0.58rem;color:#475569;text-transform:uppercase;"
             f"letter-spacing:0.1em;'>Region</div>"
-            f"<div style='font-size:1rem;font-weight:900;color:{reg_color};'>📍 {region}</div>"
+            f"<div style='font-size:1rem;font-weight:900;color:{reg_color};'>"
+            f"📍 {region}</div>"
             f"</div>"
             f"<div style='text-align:right;'>"
             f"<div style='font-size:0.65rem;font-weight:700;color:#475569;'>{local_date}</div>"
             f"<div style='font-size:0.75rem;font-weight:800;color:#64748b;"
             f"font-family:monospace;'>{local_time}</div>"
-            f"</div></div>",
+            f"</div>"
+            f"</div>",
             unsafe_allow_html=True,
         )
 
+    # SL CRIT / WARN / OK tiles
     for col, label, count, clr in [
         (crit_col, "SL CRIT", r_crit, "#ef4444"),
         (warn_col, "SL WARN", r_warn, "#f59e0b"),
@@ -191,11 +204,13 @@ def _region_summary_row(region: str):
                 f"border-radius:8px;padding:5px 4px;'>"
                 f"<div style='font-size:0.52rem;font-weight:700;color:{clr};"
                 f"text-transform:uppercase;letter-spacing:0.07em;'>{label}</div>"
-                f"<div style='font-size:1.05rem;font-weight:800;color:{clr};'>{count}</div>"
+                f"<div style='font-size:1.05rem;font-weight:800;color:{clr};'>"
+                f"{count}</div>"
                 f"</div>",
                 unsafe_allow_html=True,
             )
 
+    # Avg SVC Level
     avg_sl     = reg_lv["service_level_pct"].mean()
     avg_sl_sc  = severity_score("service_level_pct", avg_sl)
     avg_sl_clr = sev_color(avg_sl_sc)
@@ -212,6 +227,7 @@ def _region_summary_row(region: str):
             unsafe_allow_html=True,
         )
 
+    # Worst SL Queue
     with worst_col:
         st.markdown(
             f"<div style='background:#111827;"
@@ -219,7 +235,8 @@ def _region_summary_row(region: str):
             f"border-radius:8px;padding:5px 8px;'>"
             f"<div style='font-size:0.52rem;color:#475569;text-transform:uppercase;"
             f"letter-spacing:0.05em;margin-bottom:3px;'>Worst SL Queue</div>"
-            f"<div style='display:flex;align-items:baseline;gap:5px;flex-wrap:nowrap;overflow:hidden;'>"
+            f"<div style='display:flex;align-items:baseline;gap:5px;"
+            f"flex-wrap:nowrap;overflow:hidden;'>"
             f"<span style='font-size:0.78rem;font-weight:800;color:{worst_sl_clr};"
             f"white-space:nowrap;'>{worst_row['bu']}</span>"
             f"<span style='font-size:0.62rem;color:#475569;'>·</span>"
@@ -232,6 +249,7 @@ def _region_summary_row(region: str):
             unsafe_allow_html=True,
         )
 
+    # Remaining KPIs
     for col, label, val in [
         (agents_col, "Agents Online", f"{int(reg_lv['agents_logged'].sum())}"),
         (qvol_col,   "Queue Volume",  f"{reg_lv['queue_volume'].sum():.0f}"),
@@ -254,7 +272,9 @@ for region in REGIONS:
 
 st.markdown("<hr style='margin:8px 0 6px;border-color:#1e293b;'>", unsafe_allow_html=True)
 
-# ── Filter + main grid ─────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════════
+# FILTER + MAIN GRID
+# ═══════════════════════════════════════════════════════════════════════════════
 fcol1, fcol2 = st.columns([1, 9])
 with fcol1:
     st.markdown(
@@ -263,7 +283,7 @@ with fcol1:
         unsafe_allow_html=True,
     )
 with fcol2:
-    sl_filter = st.segmented_control(
+    sl_filter = st.pills(
         "sl_filter",
         options=["🔴 Critical", "🟡 Warning", "🟢 OK"],
         selection_mode="multi",
@@ -282,11 +302,13 @@ for tab, region in zip(region_tabs, REGIONS):
         for bu in BUS:
             bu_color = BU_COLORS[bu]
 
+            # Determine which queues in this BU+region pass the filter
             matching = [
                 q for q in QUEUES
                 if _passes_filter(_qk(bu, region, q), sl_filter)
             ]
 
+            # Hide BU entirely if nothing matches
             if not matching:
                 continue
 
@@ -296,6 +318,7 @@ for tab, region in zip(region_tabs, REGIONS):
                 unsafe_allow_html=True,
             )
 
+            # Render in rows of up to 3, left-aligned
             for row_start in range(0, len(matching), 3):
                 row_queues = matching[row_start:row_start + 3]
                 card_cols  = st.columns(3)
@@ -355,6 +378,7 @@ for tab, region in zip(region_tabs, REGIONS):
                             key=f"sl_{qk}",
                         )
 
+                # Expanded panels for this row
                 for queue in row_queues:
                     qk          = _qk(bu, region, queue)
                     row_data    = lv[lv["queue_key"] == qk].iloc[0]
