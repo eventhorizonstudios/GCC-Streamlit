@@ -15,7 +15,7 @@ import streamlit as st
 # STRUCTURE
 # ═══════════════════════════════════════════════════════════════════════════════
 BUS        = ["BU1", "BU2", "BU3", "BU4"]
-REGIONS    = ["Region 1", "Region 2", "Region 3"]
+REGIONS    = ["West", "Central", "East"]
 ACTIVITIES = ["Activity 1", "Activity 2", "Activity 3",
               "Activity 4", "Activity 5", "Activity 6"]
 
@@ -32,7 +32,7 @@ QK_META = {
     for bu in BUS for r in REGIONS for a in ACTIVITIES
 }
 
-REGION_SHORT   = {"Region 1": "R1",  "Region 2": "R2",  "Region 3": "R3"}
+REGION_SHORT   = {"West": "W",  "Central": "C",  "East": "E"}
 ACTIVITY_SHORT = {f"Activity {i}": f"A{i}" for i in range(1, 7)}
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -55,9 +55,9 @@ BU_COLORS = {
 }
 
 REGION_COLORS = {
-    "Region 1": "#60a5fa",
-    "Region 2": "#c084fc",
-    "Region 3": "#4ade80",
+    "West": "#60a5fa",
+    "Central": "#c084fc",
+    "East": "#4ade80",
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -71,7 +71,7 @@ REGION_COLORS = {
 #     service_level : warn < 80,  crit < 70  (inverted)
 def _build_profiles() -> dict:
     bu_off  = {"BU1":  0, "BU2":  6, "BU3": -4, "BU4": 12}
-    reg_off = {"Region 1": 0, "Region 2": 3, "Region 3": -2}
+    reg_off = {"West": 0, "Central": 3, "East": -2}
     act_off = {"Activity 1": 0, "Activity 2": 2, "Activity 3": 1,
                "Activity 4": 3, "Activity 5": 1, "Activity 6": 2}
     profiles = {}
