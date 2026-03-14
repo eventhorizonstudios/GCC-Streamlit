@@ -95,7 +95,8 @@ with title_col:
 with clock_col:
     st.markdown(
         f"<div style='text-align:right;padding:4px 0;'>"
-        f"<span style='font-size:0.6rem;color:#334155;letter-spacing:0.08em;'>LAST POLL</span><br>"
+        f"<span style='font-size:0.6rem;color:#334155;letter-spacing:0.08em;'>LAST POLL (UTC)</span><br>"
+        f"<span style='font-size:0.65rem;color:#475569;'>{latest_ts.strftime('%d/%m/%Y')}</span><br>"
         f"<span style='font-size:1rem;font-weight:800;color:#38bdf8;'>"
         f"{latest_ts.strftime('%H:%M:%S')}</span>"
         f"<span style='font-size:0.6rem;color:#1e293b;margin-left:6px;'>"
