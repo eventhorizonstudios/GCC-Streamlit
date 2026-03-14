@@ -230,7 +230,7 @@ def generate_message(qkey: str, prev: dict) -> dict:
     }
 
 
-def warm_history(qkey: str, n: int = 30) -> pd.DataFrame:
+def warm_history(qkey: str, n: int = 120) -> pd.DataFrame:
     rows, prev = [], {}
     base_ts = datetime.now() - timedelta(seconds=POLL_SECS * n)
     for i in range(n):
