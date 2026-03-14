@@ -22,22 +22,27 @@ CHANNEL_COLORS = {"Calls": "#38bdf8", "Texts": "#a78bfa", "Emails": "#34d399"}
 CHANNEL_ICONS  = {"Calls": "📞",       "Texts": "💬",       "Emails": "📧"}
 BU_COLORS      = {"BU1": "#38bdf8",   "BU2": "#f472b6",   "BU3": "#fb923c", "BU4": "#a78bfa"}
 
-# Baselines sit well below warn thresholds so the fleet is mostly OK at rest.
-# BU4 is intentionally stressed; BU3 is the healthiest.
-# 4 % spike chance per tick can push individual queues into WARN/CRIT.
+# Baselines are comfortably inside OK territory for every metric.
+# Mean reversion in generate_message() keeps values anchored to these baselines.
+# Spikes (1.5 % chance) push toward WARN; only rare compounding reaches CRIT.
+#   queue_volume  : warn ≥ 50,  crit ≥ 80   → baselines 10–38
+#   aht_seconds   : warn ≥ 300, crit ≥ 420  → baselines 190–265
+#   occupancy_pct : warn ≥ 85,  crit ≥ 95   → baselines 55–78
+#   adherence_pct : warn < 88,  crit < 80   → baselines 91–97
+#   service_level : warn < 80,  crit < 70   → baselines 85–94
 QUEUE_PROFILES = {
-    "BU1_Calls":  {"queue": 28, "aht": 225, "occ": 70, "adh": 93, "sl": 88, "agents": 12},
-    "BU1_Texts":  {"queue": 18, "aht": 155, "occ": 61, "adh": 94, "sl": 91, "agents":  7},
-    "BU1_Emails": {"queue": 13, "aht": 335, "occ": 57, "adh": 95, "sl": 93, "agents":  5},
-    "BU2_Calls":  {"queue": 42, "aht": 265, "occ": 78, "adh": 91, "sl": 84, "agents": 16},
-    "BU2_Texts":  {"queue": 30, "aht": 190, "occ": 71, "adh": 92, "sl": 86, "agents":  9},
-    "BU2_Emails": {"queue": 24, "aht": 385, "occ": 65, "adh": 93, "sl": 87, "agents":  7},
-    "BU3_Calls":  {"queue": 20, "aht": 205, "occ": 63, "adh": 95, "sl": 92, "agents": 10},
-    "BU3_Texts":  {"queue": 12, "aht": 140, "occ": 53, "adh": 96, "sl": 94, "agents":  5},
-    "BU3_Emails": {"queue":  9, "aht": 305, "occ": 49, "adh": 97, "sl": 95, "agents":  4},
-    "BU4_Calls":  {"queue": 55, "aht": 290, "occ": 83, "adh": 87, "sl": 77, "agents": 19},
-    "BU4_Texts":  {"queue": 40, "aht": 215, "occ": 77, "adh": 89, "sl": 81, "agents": 12},
-    "BU4_Emails": {"queue": 34, "aht": 455, "occ": 72, "adh": 90, "sl": 82, "agents":  8},
+    "BU1_Calls":  {"queue": 25, "aht": 220, "occ": 68, "adh": 93, "sl": 89, "agents": 12},
+    "BU1_Texts":  {"queue": 16, "aht": 155, "occ": 60, "adh": 94, "sl": 91, "agents":  7},
+    "BU1_Emails": {"queue": 11, "aht": 240, "occ": 56, "adh": 95, "sl": 92, "agents":  5},
+    "BU2_Calls":  {"queue": 35, "aht": 245, "occ": 72, "adh": 92, "sl": 86, "agents": 16},
+    "BU2_Texts":  {"queue": 22, "aht": 175, "occ": 65, "adh": 93, "sl": 87, "agents":  9},
+    "BU2_Emails": {"queue": 18, "aht": 255, "occ": 60, "adh": 94, "sl": 88, "agents":  7},
+    "BU3_Calls":  {"queue": 18, "aht": 200, "occ": 60, "adh": 95, "sl": 92, "agents": 10},
+    "BU3_Texts":  {"queue": 10, "aht": 135, "occ": 52, "adh": 96, "sl": 94, "agents":  5},
+    "BU3_Emails": {"queue":  8, "aht": 210, "occ": 47, "adh": 97, "sl": 95, "agents":  4},
+    "BU4_Calls":  {"queue": 38, "aht": 260, "occ": 76, "adh": 91, "sl": 85, "agents": 19},
+    "BU4_Texts":  {"queue": 28, "aht": 200, "occ": 70, "adh": 92, "sl": 87, "agents": 12},
+    "BU4_Emails": {"queue": 22, "aht": 265, "occ": 65, "adh": 93, "sl": 88, "agents":  8},
 }
 
 THRESHOLDS = {
@@ -125,18 +130,26 @@ GLOBAL_CSS = """
 def generate_message(qkey: str, prev: dict) -> dict:
     p = QUEUE_PROFILES[qkey]
 
-    def jitter(val, lo, hi, sigma=0.03):
-        return float(np.clip(val + np.random.normal(0, max(val * sigma, 0.3)), lo, hi))
+    def mean_revert(prev_val, baseline, lo, hi, sigma=0.025, pull=0.15):
+        """Step toward baseline (pull) then add small noise.
+        pull=0.15 means 15% of the gap to baseline is closed each tick,
+        keeping the random walk anchored in OK territory."""
+        target = prev_val + pull * (baseline - prev_val)
+        noise  = np.random.normal(0, max(abs(target) * sigma, 0.3))
+        return float(np.clip(target + noise, lo, hi))
 
-    q  = jitter(prev.get("queue_volume",      p["queue"]), 0,   150)
-    a  = jitter(prev.get("aht_seconds",       p["aht"]),   60,  600)
-    o  = jitter(prev.get("occupancy_pct",     p["occ"]),   30,  100)
-    d  = jitter(prev.get("adherence_pct",     p["adh"]),   55,  100)
-    sl = jitter(prev.get("service_level_pct", p["sl"]),    40,  100)
+    q  = mean_revert(prev.get("queue_volume",      p["queue"]), p["queue"], 0,   120)
+    a  = mean_revert(prev.get("aht_seconds",       p["aht"]),   p["aht"],   60,  500)
+    o  = mean_revert(prev.get("occupancy_pct",     p["occ"]),   p["occ"],   30,  100)
+    d  = mean_revert(prev.get("adherence_pct",     p["adh"]),   p["adh"],   65,  100)
+    sl = mean_revert(prev.get("service_level_pct", p["sl"]),    p["sl"],    50,  100)
 
-    if random.random() < 0.04: q  = min(q  * random.uniform(1.5, 2.2), 150)
-    if random.random() < 0.04: a  = min(a  * random.uniform(1.2, 1.6), 600)
-    if random.random() < 0.04: sl = max(sl * random.uniform(0.75, 0.92), 40)
+    # Spikes: 1.5 % chance — sized to reach WARN territory, not CRIT.
+    # A second independent spike on the same tick (0.015 * 0.015 = 0.02 %) is
+    # what occasionally tips a value from WARN into CRIT, keeping CRIT rare.
+    if random.random() < 0.015: q  = min(q  * random.uniform(1.4, 1.8), 120)
+    if random.random() < 0.015: a  = min(a  * random.uniform(1.15, 1.4), 500)
+    if random.random() < 0.015: sl = max(sl * random.uniform(0.82, 0.93), 50)
 
     agents  = max(1, p["agents"] + random.randint(-2, 3))
     offered = random.randint(int(q * 1.4), int(q * 3.0 + 15))
