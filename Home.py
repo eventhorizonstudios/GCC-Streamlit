@@ -3,6 +3,8 @@ Home.py — GCC Overview (TV monitoring display)
 Run with:  streamlit run Home.py
 """
 
+from datetime import datetime
+from zoneinfo import ZoneInfo
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 from utils import (
@@ -57,6 +59,13 @@ st.markdown("""
 init_and_tick()
 if "expanded" not in st.session_state:
     st.session_state.expanded = set()
+
+# Timezone mapping for region summary clocks
+REGION_TZ = {
+    "West":    ZoneInfo("America/Chicago"),
+    "Central": ZoneInfo("Europe/Tallinn"),
+    "East":    ZoneInfo("Asia/Singapore"),
+}
 
 # Pre-computed once — SL excluded from expansion charts (shown as sparkline)
 NON_SL_CFG = [
@@ -129,16 +138,26 @@ def _region_summary_row(region: str):
         [1.2, 0.65, 0.65, 0.65, 0.85, 0.85, 0.8, 0.8, 0.8, 0.8]
     )
 
-    # Region label
+    # Region label + local clock
+    local_dt  = datetime.now(REGION_TZ[region])
+    local_date = local_dt.strftime('%d/%m/%Y')
+    local_time = local_dt.strftime('%H:%M:%S')
     with label_col:
         st.markdown(
             f"<div style='background:#111827;border:1px solid #1e293b;"
             f"border-left:3px solid {reg_color};border-radius:8px;"
-            f"padding:6px 10px;'>"
+            f"padding:6px 10px;display:flex;justify-content:space-between;"
+            f"align-items:center;'>"
+            f"<div>"
             f"<div style='font-size:0.58rem;color:#475569;text-transform:uppercase;"
             f"letter-spacing:0.1em;'>Region</div>"
             f"<div style='font-size:1rem;font-weight:900;color:{reg_color};'>"
             f"📍 {region}</div>"
+            f"</div>"
+            f"<div style='text-align:right;'>"
+            f"<div style='font-size:0.65rem;font-weight:700;color:#475569;'>{local_date}</div>"
+            f"<div style='font-size:0.75rem;font-weight:800;color:#64748b;font-family:monospace;'>{local_time}</div>"
+            f"</div>"
             f"</div>",
             unsafe_allow_html=True,
         )
