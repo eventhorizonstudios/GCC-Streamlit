@@ -165,154 +165,141 @@ with hc10:
 st.markdown("<hr style='margin:6px 0 10px;border-color:#1e293b;'>", unsafe_allow_html=True)
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# MAIN GRID — BU sections × Region columns × Activity rows
+# MAIN GRID — Region tabs × BU sections × Activity rows
 # ═══════════════════════════════════════════════════════════════════════════════
-for bu in BUS:
-    bu_color = BU_COLORS[bu]
+region_tabs = st.tabs([f"📍 {r}" for r in REGIONS])
 
-    # BU header
-    st.markdown(
-        f"<div class='bu-header' style='color:{bu_color};"
-        f"border-color:{bu_color}33;'>{bu}</div>",
-        unsafe_allow_html=True,
-    )
+for tab, region in zip(region_tabs, REGIONS):
+    reg_color = REGION_COLORS[region]
 
-    # 3 region columns
-    reg_cols = st.columns(3)
+    with tab:
+        # Inside each region tab: 4 BU columns side by side
+        bu_cols = st.columns(4)
 
-    for reg_col, region in zip(reg_cols, REGIONS):
-        reg_color = REGION_COLORS[region]
+        for bu_col, bu in zip(bu_cols, BUS):
+            bu_color = BU_COLORS[bu]
 
-        with reg_col:
-            # Region header
-            st.markdown(
-                f"<div class='region-header' style='color:{reg_color};'>"
-                f"📍 {region}</div>",
-                unsafe_allow_html=True,
-            )
+            with bu_col:
+                # BU header
+                st.markdown(
+                    f"<div class='bu-header' style='color:{bu_color};"
+                    f"border-color:{bu_color}33;font-size:0.95rem;"
+                    f"padding:6px 0 4px;'>{bu}</div>",
+                    unsafe_allow_html=True,
+                )
 
-            # 6 activity rows
-            for activity in ACTIVITIES:
-                qk        = _qk(bu, region, activity)
-                row_data  = lv[lv["queue_key"] == qk].iloc[0]
-                act_color = ACTIVITY_COLORS[activity]
-                short     = ACTIVITY_SHORT[activity]
-                sl_val    = row_data["service_level_pct"]
-                sl_sc     = severity_score("service_level_pct", sl_val)
-                dot_clr   = sev_color(sl_sc)
-                is_exp    = qk in st.session_state.expanded
+                # 6 activity rows for this BU × region
+                for activity in ACTIVITIES:
+                    qk        = _qk(bu, region, activity)
+                    row_data  = lv[lv["queue_key"] == qk].iloc[0]
+                    act_color = ACTIVITY_COLORS[activity]
+                    short     = ACTIVITY_SHORT[activity]
+                    sl_val    = row_data["service_level_pct"]
+                    sl_sc     = severity_score("service_level_pct", sl_val)
+                    dot_clr   = sev_color(sl_sc)
+                    is_exp    = qk in st.session_state.expanded
 
-                # ── Activity row ──────────────────────────────────────────────
-                # Status dot | short name | SL value | toggle button
-                rc1, rc2, rc3, rc4 = st.columns([0.15, 0.55, 0.5, 0.2])
+                    # ── Activity row ──────────────────────────────────────────
+                    rc1, rc2, rc3, rc4 = st.columns([0.15, 0.55, 0.5, 0.2])
 
-                with rc1:
-                    st.markdown(
-                        f"<div style='padding-top:38px;text-align:center;'>"
-                        f"<span style='display:inline-block;width:9px;height:9px;"
-                        f"border-radius:50%;background:{dot_clr};'></span>"
-                        f"</div>",
-                        unsafe_allow_html=True,
-                    )
-
-                with rc2:
-                    st.markdown(
-                        f"<div style='padding-top:30px;'>"
-                        f"<span style='font-size:0.8rem;font-weight:700;"
-                        f"color:{act_color};'>{short}</span>"
-                        f"<span style='font-size:0.62rem;color:#334155;"
-                        f"margin-left:5px;'>{activity}</span>"
-                        f"</div>",
-                        unsafe_allow_html=True,
-                    )
-
-                with rc3:
-                    # SL sparkline — the main always-visible element
-                    fig_sl = make_sl_sparkline(qk, act_color, height=72)
-                    st.plotly_chart(
-                        fig_sl, use_container_width=True,
-                        config={"displayModeBar": False},
-                        key=f"sl_{qk}",
-                    )
-
-                with rc4:
-                    # SL current value + toggle button
-                    sl_color_val = sev_color(sl_sc)
-                    st.markdown(
-                        f"<div style='text-align:center;padding-top:10px;'>"
-                        f"<div style='font-size:1.3rem;font-weight:900;"
-                        f"color:{sl_color_val};line-height:1;'>{sl_val:.0f}%</div>"
-                        f"<div style='font-size:0.55rem;color:#334155;"
-                        f"text-transform:uppercase;letter-spacing:0.05em;'>SL</div>"
-                        f"</div>",
-                        unsafe_allow_html=True,
-                    )
-                    toggle_label = "▼ hide" if is_exp else "▶ expand"
-                    if st.button(toggle_label, key=f"tog_{qk}"):
-                        if is_exp:
-                            st.session_state.expanded.discard(qk)
-                        else:
-                            st.session_state.expanded.add(qk)
-                        st.rerun()
-
-                # ── Expanded metric panel ─────────────────────────────────────
-                # Use st.empty() so collapsing fully replaces the slot with
-                # nothing — prevents ghost chart remnants on hide.
-                exp_slot = st.empty()
-                if is_exp:
-                    with exp_slot.container():
-                        # Compute overall worst score for highlight colour
-                        all_sc  = max(severity_score(mk, row_data[mk]) for mk in ALL_METRICS)
-                        hdr_clr = sev_color(all_sc)
-
-                        # Alert summary bar
-                        alert_parts = []
-                        for mk, mname, unit in [
-                            ("queue_volume",      "Q",   ""),
-                            ("aht_seconds",       "AHT", "s"),
-                            ("service_level_pct", "SL",  "%"),
-                            ("occupancy_pct",     "Occ", "%"),
-                            ("adherence_pct",     "Adh", "%"),
-                        ]:
-                            sc  = severity_score(mk, row_data[mk])
-                            clr = sev_color(sc)
-                            lbl = sev_label(sc)
-                            alert_parts.append(
-                                f"<span style='color:{clr};font-size:0.72rem;"
-                                f"font-weight:700;'>{lbl} {mname}:"
-                                f"<b>{row_data[mk]:.0f}{unit}</b></span>"
-                            )
-                        sep = "&nbsp;<span style='color:#1e293b;'>|</span>&nbsp;"
-
+                    with rc1:
                         st.markdown(
-                            f"<div style='background:#0d1117;border:1px solid {hdr_clr}33;"
-                            f"border-left:3px solid {hdr_clr};border-radius:6px;"
-                            f"padding:7px 12px;margin:2px 0 8px;'>"
-                            f"<span style='font-size:0.72rem;font-weight:800;"
-                            f"color:{act_color};margin-right:10px;'>{short} · {activity}</span>"
-                            f"{sep.join(alert_parts)}"
+                            f"<div style='padding-top:38px;text-align:center;'>"
+                            f"<span style='display:inline-block;width:9px;height:9px;"
+                            f"border-radius:50%;background:{dot_clr};'></span>"
                             f"</div>",
                             unsafe_allow_html=True,
                         )
 
-                        # 5 metric charts in a single row
-                        chart_cols = st.columns(5)
-                        for cc, (mkey, mname, unit, warn, crit, invert) in zip(
-                            chart_cols, CHART_METRIC_CFG
-                        ):
-                            with cc:
-                                fig_m = make_single_activity_chart(
-                                    qk, mkey, mname, unit,
-                                    warn, crit, invert,
-                                    act_color, height=155,
-                                )
-                                st.plotly_chart(
-                                    fig_m, use_container_width=True,
-                                    config={"displayModeBar": False},
-                                    key=f"m_{qk}_{mkey}",
-                                )
+                    with rc2:
+                        st.markdown(
+                            f"<div style='padding-top:30px;'>"
+                            f"<span style='font-size:0.8rem;font-weight:700;"
+                            f"color:{act_color};'>{short}</span>"
+                            f"<span style='font-size:0.62rem;color:#334155;"
+                            f"margin-left:5px;'>{activity}</span>"
+                            f"</div>",
+                            unsafe_allow_html=True,
+                        )
 
-    st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
+                    with rc3:
+                        fig_sl = make_sl_sparkline(qk, act_color, height=72)
+                        st.plotly_chart(
+                            fig_sl, use_container_width=True,
+                            config={"displayModeBar": False},
+                            key=f"sl_{qk}",
+                        )
+
+                    with rc4:
+                        sl_color_val = sev_color(sl_sc)
+                        st.markdown(
+                            f"<div style='text-align:center;padding-top:10px;'>"
+                            f"<div style='font-size:1.3rem;font-weight:900;"
+                            f"color:{sl_color_val};line-height:1;'>{sl_val:.0f}%</div>"
+                            f"<div style='font-size:0.55rem;color:#334155;"
+                            f"text-transform:uppercase;letter-spacing:0.05em;'>SL</div>"
+                            f"</div>",
+                            unsafe_allow_html=True,
+                        )
+                        toggle_label = "▼ hide" if is_exp else "▶ expand"
+                        if st.button(toggle_label, key=f"tog_{qk}"):
+                            if is_exp:
+                                st.session_state.expanded.discard(qk)
+                            else:
+                                st.session_state.expanded.add(qk)
+                            st.rerun()
+
+                    # ── Expanded metric panel ─────────────────────────────────
+                    exp_slot = st.empty()
+                    if is_exp:
+                        with exp_slot.container():
+                            all_sc  = max(severity_score(mk, row_data[mk]) for mk in ALL_METRICS)
+                            hdr_clr = sev_color(all_sc)
+
+                            alert_parts = []
+                            for mk, mname, unit in [
+                                ("queue_volume",      "Q",   ""),
+                                ("aht_seconds",       "AHT", "s"),
+                                ("service_level_pct", "SL",  "%"),
+                                ("occupancy_pct",     "Occ", "%"),
+                                ("adherence_pct",     "Adh", "%"),
+                            ]:
+                                sc  = severity_score(mk, row_data[mk])
+                                clr = sev_color(sc)
+                                lbl = sev_label(sc)
+                                alert_parts.append(
+                                    f"<span style='color:{clr};font-size:0.72rem;"
+                                    f"font-weight:700;'>{lbl} {mname}:"
+                                    f"<b>{row_data[mk]:.0f}{unit}</b></span>"
+                                )
+                            sep = "&nbsp;<span style='color:#1e293b;'>|</span>&nbsp;"
+
+                            st.markdown(
+                                f"<div style='background:#0d1117;border:1px solid {hdr_clr}33;"
+                                f"border-left:3px solid {hdr_clr};border-radius:6px;"
+                                f"padding:7px 12px;margin:2px 0 8px;'>"
+                                f"<span style='font-size:0.72rem;font-weight:800;"
+                                f"color:{act_color};margin-right:10px;'>{short} · {activity}</span>"
+                                f"{sep.join(alert_parts)}"
+                                f"</div>",
+                                unsafe_allow_html=True,
+                            )
+
+                            chart_cols = st.columns(5)
+                            for cc, (mkey, mname, unit, warn, crit, invert) in zip(
+                                chart_cols, CHART_METRIC_CFG
+                            ):
+                                with cc:
+                                    fig_m = make_single_activity_chart(
+                                        qk, mkey, mname, unit,
+                                        warn, crit, invert,
+                                        act_color, height=155,
+                                    )
+                                    st.plotly_chart(
+                                        fig_m, use_container_width=True,
+                                        config={"displayModeBar": False},
+                                        key=f"m_{qk}_{mkey}",
+                                    )
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # AUTO-REFRESH
