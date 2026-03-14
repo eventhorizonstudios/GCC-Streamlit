@@ -45,18 +45,29 @@ st.markdown("""
     color: #38bdf8 !important; background: transparent !important;
   }
 
-  /* Segmented control — red (deselected) / green (selected) */
-  [data-testid="stSegmentedControl"] button {
-    background: #1a0808 !important;
-    color: #ef4444 !important;
-    border: 1px solid #ef444440 !important;
-    font-weight: 600 !important;
-  }
-  [data-testid="stSegmentedControl"] button[aria-checked="true"] {
-    background: #052e16 !important;
-    color: #22c55e !important;
-    border: 1px solid #22c55e60 !important;
-  }
+    /* Segmented control — deselected = red, selected = green */
+
+    /* Deselected state (default) */
+    [data-testid="stSegmentedControl"] button,
+    [data-testid="stSegmentedControl"] [role="radio"],
+    [data-testid="stSegmentedControl"] [role="option"] {
+        background: #1a0808 !important;
+        color: #ef4444 !important;
+        border: 1px solid #ef444440 !important;
+        font-weight: 600 !important;
+    }
+
+    /* Selected state — try all possible active indicators */
+    [data-testid="stSegmentedControl"] button[aria-checked="true"],
+    [data-testid="stSegmentedControl"] button[aria-selected="true"],
+    [data-testid="stSegmentedControl"] button[data-active="true"],
+    [data-testid="stSegmentedControl"] button.selected,
+    [data-testid="stSegmentedControl"] [aria-checked="true"],
+    [data-testid="stSegmentedControl"] [aria-selected="true"] {
+        background: #052e16 !important;
+        color: #22c55e !important;
+        border: 1px solid #22c55e60 !important;
+    }
   [data-testid="stSegmentedControl"] button:hover {
     opacity: 0.85 !important;
   }
