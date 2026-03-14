@@ -256,57 +256,61 @@ for bu in BUS:
                         st.rerun()
 
                 # ── Expanded metric panel ─────────────────────────────────────
+                # Use st.empty() so collapsing fully replaces the slot with
+                # nothing — prevents ghost chart remnants on hide.
+                exp_slot = st.empty()
                 if is_exp:
-                    # Compute overall worst score for highlight colour
-                    all_sc  = max(severity_score(mk, row_data[mk]) for mk in ALL_METRICS)
-                    hdr_clr = sev_color(all_sc)
+                    with exp_slot.container():
+                        # Compute overall worst score for highlight colour
+                        all_sc  = max(severity_score(mk, row_data[mk]) for mk in ALL_METRICS)
+                        hdr_clr = sev_color(all_sc)
 
-                    # Alert summary bar
-                    alert_parts = []
-                    for mk, mname, unit in [
-                        ("queue_volume",      "Q",   ""),
-                        ("aht_seconds",       "AHT", "s"),
-                        ("service_level_pct", "SL",  "%"),
-                        ("occupancy_pct",     "Occ", "%"),
-                        ("adherence_pct",     "Adh", "%"),
-                    ]:
-                        sc  = severity_score(mk, row_data[mk])
-                        clr = sev_color(sc)
-                        lbl = sev_label(sc)
-                        alert_parts.append(
-                            f"<span style='color:{clr};font-size:0.72rem;"
-                            f"font-weight:700;'>{lbl} {mname}:"
-                            f"<b>{row_data[mk]:.0f}{unit}</b></span>"
+                        # Alert summary bar
+                        alert_parts = []
+                        for mk, mname, unit in [
+                            ("queue_volume",      "Q",   ""),
+                            ("aht_seconds",       "AHT", "s"),
+                            ("service_level_pct", "SL",  "%"),
+                            ("occupancy_pct",     "Occ", "%"),
+                            ("adherence_pct",     "Adh", "%"),
+                        ]:
+                            sc  = severity_score(mk, row_data[mk])
+                            clr = sev_color(sc)
+                            lbl = sev_label(sc)
+                            alert_parts.append(
+                                f"<span style='color:{clr};font-size:0.72rem;"
+                                f"font-weight:700;'>{lbl} {mname}:"
+                                f"<b>{row_data[mk]:.0f}{unit}</b></span>"
+                            )
+                        sep = "&nbsp;<span style='color:#1e293b;'>|</span>&nbsp;"
+
+                        st.markdown(
+                            f"<div style='background:#0d1117;border:1px solid {hdr_clr}33;"
+                            f"border-left:3px solid {hdr_clr};border-radius:6px;"
+                            f"padding:7px 12px;margin:2px 0 8px;'>"
+                            f"<span style='font-size:0.72rem;font-weight:800;"
+                            f"color:{act_color};margin-right:10px;'>{short} · {activity}</span>"
+                            f"{sep.join(alert_parts)}"
+                            f"</div>",
+                            unsafe_allow_html=True,
                         )
-                    sep = "&nbsp;<span style='color:#1e293b;'>|</span>&nbsp;"
 
-                    st.markdown(
-                        f"<div style='background:#0d1117;border:1px solid {hdr_clr}33;"
-                        f"border-left:3px solid {hdr_clr};border-radius:6px;"
-                        f"padding:7px 12px;margin:2px 0 8px;'>"
-                        f"<span style='font-size:0.72rem;font-weight:800;"
-                        f"color:{act_color};margin-right:10px;'>{short} · {activity}</span>"
-                        f"{sep.join(alert_parts)}"
-                        f"</div>",
-                        unsafe_allow_html=True,
-                    )
-
-                    # 5 metric charts in a single row
-                    chart_cols = st.columns(5)
-                    for cc, (mkey, mname, unit, warn, crit, invert) in zip(
-                        chart_cols, CHART_METRIC_CFG
-                    ):
-                        with cc:
-                            fig_m = make_single_activity_chart(
-                                qk, mkey, mname, unit,
-                                warn, crit, invert,
-                                act_color, height=155,
-                            )
-                            st.plotly_chart(
-                                fig_m, use_container_width=True,
-                                config={"displayModeBar": False},
-                                key=f"m_{qk}_{mkey}",
-                            )
+                        # 5 metric charts in a single row
+                        chart_cols = st.columns(5)
+                        for cc, (mkey, mname, unit, warn, crit, invert) in zip(
+                            chart_cols, CHART_METRIC_CFG
+                        ):
+                            with cc:
+                                fig_m = make_single_activity_chart(
+                                    qk, mkey, mname, unit,
+                                    warn, crit, invert,
+                                    act_color, height=155,
+                                )
+                                st.plotly_chart(
+                                    fig_m, use_container_width=True,
+                                    config={"displayModeBar": False},
+                                    key=f"m_{qk}_{mkey}",
+                                )
 
     st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
 
