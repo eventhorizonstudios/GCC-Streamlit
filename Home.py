@@ -407,36 +407,58 @@ for tab, region in zip(region_tabs, REGIONS):
                             all_sc  = max(severity_score(mk, row_data[mk]) for mk in ALL_METRICS)
                             hdr_clr = sev_color(all_sc)
 
-                            alert_parts = []
-                            for mk, mname, unit in [
-                                ("queue_volume",      "Q",   ""),
-                                ("aht_seconds",       "AHT", "s"),
-                                ("service_level_pct", "SL",  "%"),
-                                ("occupancy_pct",     "Occ", "%"),
-                                ("adherence_pct",     "Adh", "%"),
-                            ]:
+                            # Metric tiles row — one card per metric
+                            metric_defs = [
+                                ("queue_volume",      "Queue",        ""),
+                                ("aht_seconds",       "AHT",          "s"),
+                                ("service_level_pct", "Service Level","%"),
+                                ("occupancy_pct",     "Occupancy",    "%"),
+                                ("adherence_pct",     "Adherence",    "%"),
+                            ]
+                            title_col_h, *metric_tile_cols = st.columns(
+                                [1.2, 1, 1, 1, 1, 1]
+                            )
+                            with title_col_h:
+                                st.markdown(
+                                    f"<div style='background:#0d1117;"
+                                    f"border:1px solid {hdr_clr}33;"
+                                    f"border-left:3px solid {hdr_clr};"
+                                    f"border-radius:8px;padding:10px 14px;"
+                                    f"height:100%;display:flex;flex-direction:column;"
+                                    f"justify-content:center;'>"
+                                    f"<div style='font-size:0.6rem;color:#475569;"
+                                    f"text-transform:uppercase;letter-spacing:0.1em;"
+                                    f"margin-bottom:4px;'>Expanded</div>"
+                                    f"<div style='font-size:0.95rem;font-weight:900;"
+                                    f"color:{queue_color};'>{short}</div>"
+                                    f"<div style='font-size:0.7rem;color:#64748b;'>"
+                                    f"{queue}</div>"
+                                    f"</div>",
+                                    unsafe_allow_html=True,
+                                )
+                            for tile_col, (mk, mname, unit) in zip(metric_tile_cols, metric_defs):
                                 sc  = severity_score(mk, row_data[mk])
                                 clr = sev_color(sc)
                                 lbl = sev_label(sc)
-                                alert_parts.append(
-                                    f"<span style='color:{clr};font-size:0.72rem;"
-                                    f"font-weight:700;'>{lbl} {mname}:"
-                                    f"<b>{row_data[mk]:.0f}{unit}</b></span>"
-                                )
-                            sep = "&nbsp;<span style='color:#1e293b;'>|</span>&nbsp;"
-
-                            st.markdown(
-                                f"<div style='background:#0d1117;"
-                                f"border:1px solid {hdr_clr}33;"
-                                f"border-left:3px solid {hdr_clr};"
-                                f"border-radius:6px;padding:7px 12px;margin:2px 0 6px;'>"
-                                f"<span style='font-size:0.72rem;font-weight:800;"
-                                f"color:{queue_color};margin-right:10px;'>"
-                                f"{short} · {queue}</span>"
-                                f"{sep.join(alert_parts)}"
-                                f"</div>",
-                                unsafe_allow_html=True,
-                            )
+                                val = row_data[mk]
+                                with tile_col:
+                                    st.markdown(
+                                        f"<div style='text-align:center;background:#0d1117;"
+                                        f"border:1px solid #1e293b;"
+                                        f"border-top:2px solid {clr};"
+                                        f"border-radius:8px;padding:8px 6px;'>"
+                                        f"<div style='font-size:0.55rem;color:#475569;"
+                                        f"text-transform:uppercase;letter-spacing:0.07em;"
+                                        f"margin-bottom:4px;'>{mname}</div>"
+                                        f"<div style='font-size:1.3rem;font-weight:900;"
+                                        f"color:{clr};line-height:1;'>{val:.0f}{unit}</div>"
+                                        f"<div style='font-size:0.6rem;font-weight:700;"
+                                        f"color:{clr};margin-top:3px;letter-spacing:0.05em;'>"
+                                        f"{lbl}</div>"
+                                        f"</div>",
+                                        unsafe_allow_html=True,
+                                    )
+                            st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
 
                             chart_cols = st.columns(5)
                             with chart_cols[0]:
