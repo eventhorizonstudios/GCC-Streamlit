@@ -67,16 +67,14 @@ REGION_TZ = {
     "East":    ZoneInfo("Asia/Singapore"),
 }
 
-def _passes_filter(qk: str, sl_filter: str) -> bool:
-    """Return True if this queue key matches the active severity filter."""
-    if sl_filter == "All":
-        return True
+def _passes_filter(qk: str, sl_filter: list) -> bool:
+    """Return True if this queue matches any of the selected severity filters."""
     sc = severity_score("service_level_pct",
                         st.session_state.prev_msg[qk]["service_level_pct"])
-    if sl_filter == "🔴 Critical": return sc >= 1.0
-    if sl_filter == "🟡 Warning":  return sc == 0.5
-    if sl_filter == "🟢 OK":       return sc == 0.0
-    return True
+    if "🔴 Critical" in sl_filter and sc >= 1.0: return True
+    if "🟡 Warning"  in sl_filter and sc == 0.5: return True
+    if "🟢 OK"       in sl_filter and sc == 0.0: return True
+    return False
 
 # Pre-computed once — SL excluded from expansion charts (shown as sparkline)
 NON_SL_CFG = [
@@ -266,12 +264,14 @@ with fcol1:
         unsafe_allow_html=True,
     )
 with fcol2:
-    sl_filter = st.radio(
+    sl_filter_sel = st.segmented_control(
         "sl_filter",
-        options=["All", "🔴 Critical", "🟡 Warning", "🟢 OK"],
-        horizontal=True,
+        options=["🔴 Critical", "🟡 Warning", "🟢 OK"],
+        selection_mode="multi",
         label_visibility="collapsed",
     )
+    # Empty selection = show all
+    sl_filter = sl_filter_sel if sl_filter_sel else ["🔴 Critical", "🟡 Warning", "🟢 OK"]
 
 st.markdown("<div style='height:4px;'></div>", unsafe_allow_html=True)
 
