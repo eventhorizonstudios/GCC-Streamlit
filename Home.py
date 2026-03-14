@@ -51,11 +51,11 @@ st.markdown("""
     color: #38bdf8 !important; background: transparent !important;
   }
 
-  /* Pills filter — deselected = red, selected = green */
+  /* Pills filter — deselected = dark neutral, selected = green */
   [data-testid="stPills"] button {
-    background: #1a0808 !important;
-    color: #ef4444 !important;
-    border: 1px solid #ef444440 !important;
+    background: #0f172a !important;
+    color: #475569 !important;
+    border: 1px solid #1e293b !important;
     font-weight: 600 !important;
   }
   [data-testid="stPills"] button[data-selected="true"],
