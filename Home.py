@@ -88,7 +88,7 @@ with title_col:
         "<span style='font-size:1.3rem;font-weight:900;color:#38bdf8;"
         "letter-spacing:0.1em;'>📡 GCC</span>"
         "<span style='font-size:0.65rem;color:#334155;margin-left:10px;"
-        "letter-spacing:0.08em;'>GLOBAL COMMAND CENTRE · LIVE MONITOR</span>"
+        "letter-spacing:0.08em;'>GLOBAL CONTACT CENTRE · LIVE MONITOR</span>"
         "</div>",
         unsafe_allow_html=True,
     )
@@ -242,11 +242,28 @@ def _region_summary_row(region: str):
 for region in REGIONS:
     _region_summary_row(region)
 
-st.markdown("<hr style='margin:8px 0 10px;border-color:#1e293b;'>", unsafe_allow_html=True)
+st.markdown("<hr style='margin:8px 0 6px;border-color:#1e293b;'>", unsafe_allow_html=True)
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# MAIN GRID — Region tabs × BU sections × 2×3 activity card grid
+# FILTER + MAIN GRID
 # ═══════════════════════════════════════════════════════════════════════════════
+fcol1, fcol2 = st.columns([1, 9])
+with fcol1:
+    st.markdown(
+        "<div style='font-size:0.6rem;color:#475569;text-transform:uppercase;"
+        "letter-spacing:0.1em;padding-top:8px;'>Filter queues</div>",
+        unsafe_allow_html=True,
+    )
+with fcol2:
+    sl_filter = st.radio(
+        "sl_filter",
+        options=["All", "🔴 Critical", "🟡 Warning", "🟢 OK"],
+        horizontal=True,
+        label_visibility="collapsed",
+    )
+
+st.markdown("<div style='height:4px;'></div>", unsafe_allow_html=True)
+
 region_tabs = st.tabs([f"📍 {r}" for r in REGIONS])
 
 for tab, region in zip(region_tabs, REGIONS):
@@ -275,6 +292,14 @@ for tab, region in zip(region_tabs, REGIONS):
                     sl_sc     = severity_score("service_level_pct", sl_val)
                     sl_clr    = sev_color(sl_sc)
                     is_exp    = qk in st.session_state.expanded
+
+                    # Apply severity filter — skip card if it doesn't match
+                    if sl_filter == "🔴 Critical" and sl_sc < 1.0:
+                        continue
+                    if sl_filter == "🟡 Warning"  and sl_sc != 0.5:
+                        continue
+                    if sl_filter == "🟢 OK"       and sl_sc > 0.0:
+                        continue
 
                     with card_col:
                         hdr1, hdr2, hdr3 = st.columns([2, 1, 0.8])
@@ -328,6 +353,13 @@ for tab, region in zip(region_tabs, REGIONS):
                     act_color = ACTIVITY_COLORS[activity]
                     short     = ACTIVITY_SHORT[activity]
                     is_exp    = qk in st.session_state.expanded
+
+                    # Skip expansion panel for filtered-out queues
+                    sl_sc_exp = severity_score("service_level_pct",
+                                               row_data["service_level_pct"])
+                    if sl_filter == "🔴 Critical" and sl_sc_exp < 1.0: continue
+                    if sl_filter == "🟡 Warning"  and sl_sc_exp != 0.5: continue
+                    if sl_filter == "🟢 OK"       and sl_sc_exp > 0.0:  continue
 
                     exp_slot = st.empty()
                     if is_exp:
