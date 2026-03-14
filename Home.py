@@ -105,16 +105,16 @@ def _region_summary_row(region: str):
     reg_keys  = [qk for qk in QUEUE_KEYS if QK_META[qk]["region"] == region]
     reg_lv    = lv[lv["region"] == region]
 
-    # Status counts
+    # Status counts — scoped to SVC Level only, consistent with sparklines and worst queue tile
     r_crit = sum(
         1 for qk in reg_keys
-        if max(severity_score(mk, st.session_state.prev_msg[qk][mk])
-               for mk in ALL_METRICS) >= 1.0
+        if severity_score("service_level_pct",
+                          st.session_state.prev_msg[qk]["service_level_pct"]) >= 1.0
     )
     r_warn = sum(
         1 for qk in reg_keys
-        if max(severity_score(mk, st.session_state.prev_msg[qk][mk])
-               for mk in ALL_METRICS) == 0.5
+        if severity_score("service_level_pct",
+                          st.session_state.prev_msg[qk]["service_level_pct"]) == 0.5
     )
     r_ok = len(reg_keys) - r_crit - r_warn
 
@@ -150,9 +150,9 @@ def _region_summary_row(region: str):
 
     # CRIT / WARN / OK status tiles
     for col, label, count, clr in [
-        (crit_col, "CRIT", r_crit, "#ef4444"),
-        (warn_col, "WARN", r_warn, "#f59e0b"),
-        (ok_col,   "OK",   r_ok,   "#22c55e"),
+        (crit_col, "SL CRIT", r_crit, "#ef4444"),
+        (warn_col, "SL WARN", r_warn, "#f59e0b"),
+        (ok_col,   "SL OK",   r_ok,   "#22c55e"),
     ]:
         with col:
             st.markdown(
