@@ -108,7 +108,7 @@ with title_col:
         "<span style='font-size:1.3rem;font-weight:900;color:#38bdf8;"
         "letter-spacing:0.1em;'>📡 GCC</span>"
         "<span style='font-size:0.65rem;color:#334155;margin-left:10px;"
-        "letter-spacing:0.08em;'>GLOBAL CONTACT CENTRE · LIVE MONITOR</span>"
+        "letter-spacing:0.08em;'>GLOBAL COMMAND CENTRE · LIVE MONITOR</span>"
         "</div>",
         unsafe_allow_html=True,
     )
