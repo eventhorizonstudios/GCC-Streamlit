@@ -264,14 +264,16 @@ with fcol1:
         unsafe_allow_html=True,
     )
 with fcol2:
-    sl_filter_sel = st.segmented_control(
+    sl_filter = st.segmented_control(
         "sl_filter",
         options=["🔴 Critical", "🟡 Warning", "🟢 OK"],
         selection_mode="multi",
+        default=["🔴 Critical", "🟡 Warning", "🟢 OK"],
         label_visibility="collapsed",
     )
-    # Empty selection = show all
-    sl_filter = sl_filter_sel if sl_filter_sel else ["🔴 Critical", "🟡 Warning", "🟢 OK"]
+    # Empty selection = show nothing
+    if not sl_filter:
+        sl_filter = []
 
 st.markdown("<div style='height:4px;'></div>", unsafe_allow_html=True)
 
