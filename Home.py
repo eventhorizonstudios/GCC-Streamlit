@@ -351,19 +351,6 @@ for tab, region in zip(region_tabs, REGIONS):
                     with card_col:
                         hdr1, hdr2, hdr3 = st.columns([2, 1, 0.8])
 
-                        # Card header — add expanded indicator banner above
-                        if is_exp:
-                            st.markdown(
-                                f"<div style='background:{queue_color}18;"
-                                f"border:1px solid {queue_color}66;"
-                                f"border-radius:6px;padding:3px 8px;"
-                                f"margin-bottom:2px;font-size:0.6rem;"
-                                f"font-weight:700;color:{queue_color};"
-                                f"letter-spacing:0.08em;text-transform:uppercase;"
-                                f"box-shadow:0 0 8px {queue_color}33;'>"
-                                f"▼ expanded</div>",
-                                unsafe_allow_html=True,
-                            )
                         with hdr1:
                             st.markdown(
                                 f"<div style='padding-top:4px;'>"
