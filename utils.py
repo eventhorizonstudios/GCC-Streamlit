@@ -115,8 +115,8 @@ CHART_METRIC_CFG = [
 ALL_METRICS = list(THRESHOLDS.keys())
 CHART_BG    = "#111827"
 GRID_COLOR  = "#1e293b"
-HIST_LEN    = 480
-POLL_SECS   = 10
+HIST_LEN    = 120
+POLL_SECS   = 60
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # GLOBAL CSS
@@ -373,8 +373,8 @@ def render_sidebar_status():
         st.markdown("<hr>", unsafe_allow_html=True)
         st.markdown(
             "<p style='font-size:0.62rem;color:#334155;line-height:1.7;'>"
-            "⚡ Auto-refresh: 10 s<br>"
-            "📊 Rolling window: 480 ticks<br>"
+            "⚡ Auto-refresh: 60 s<br>"
+            "📊 Rolling window: 2 hours<br>"
             "🟢 OK &nbsp;🟡 WARN &nbsp;🔴 CRIT<br><br>"
             "<em>Swap <code>generate_message()</code> with a "
             "confluent-kafka consumer to go live.</em></p>",
