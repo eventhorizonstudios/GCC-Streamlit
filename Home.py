@@ -41,41 +41,19 @@ st.markdown("""
     font-size: 1.1rem; font-weight: 900; letter-spacing: 0.08em;
     padding: 10px 0 6px; margin-bottom: 4px; border-bottom: 2px solid;
   }
-  /* Ghost style only for expand/collapse toggle buttons (identified by key prefix) */
+  /* All st.buttons — fully transparent so our HTML pill shows through */
   div[data-testid="stButton"] > button {
     background: transparent !important; border: none !important;
-    color: #334155 !important; padding: 0 4px !important;
-    font-size: 0.65rem !important; line-height: 1 !important;
-    min-height: 0 !important; height: 18px !important;
+    color: transparent !important; padding: 5px 12px !important;
+    font-size: 0.78rem !important; line-height: 1.4 !important;
+    min-height: 0 !important; height: 36px !important;
+    position: relative !important; z-index: 1 !important;
+    width: 100% !important;
   }
   div[data-testid="stButton"] > button:hover {
-    color: #38bdf8 !important; background: transparent !important;
-  }
-  /* Filter pill buttons override the ghost style */
-  div.filter-btn > div[data-testid="stButton"] > button {
-    background: #0f172a !important; border: 1px solid #1e293b !important;
-    color: #475569 !important; padding: 5px 14px !important;
-    font-size: 0.78rem !important; font-weight: 700 !important;
-    border-radius: 20px !important; height: auto !important;
-    min-height: auto !important; line-height: 1.4 !important;
-    margin-right: 6px !important;
-  }
-  div.filter-btn-on > div[data-testid="stButton"] > button {
-    background: #052e16 !important; border: 1px solid #22c55e60 !important;
-    color: #22c55e !important; padding: 5px 14px !important;
-    font-size: 0.78rem !important; font-weight: 700 !important;
-    border-radius: 20px !important; height: auto !important;
-    min-height: auto !important; line-height: 1.4 !important;
-    margin-right: 6px !important;
+    background: transparent !important; opacity: 0.8 !important;
   }
 
-  /* Custom filter pill buttons */
-  .filter-pill-on  { display:inline-block;padding:5px 14px;border-radius:20px;
-    font-size:0.78rem;font-weight:700;cursor:pointer;border:1px solid #22c55e60;
-    background:#052e16;color:#22c55e;margin-right:6px; }
-  .filter-pill-off { display:inline-block;padding:5px 14px;border-radius:20px;
-    font-size:0.78rem;font-weight:700;cursor:pointer;border:1px solid #1e293b;
-    background:#0f172a;color:#475569;margin-right:6px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -289,7 +267,15 @@ st.markdown("<hr style='margin:8px 0 6px;border-color:#1e293b;'>", unsafe_allow_
 # ═══════════════════════════════════════════════════════════════════════════════
 # FILTER + MAIN GRID
 # ═══════════════════════════════════════════════════════════════════════════════
-fcol1, fcol2, fcol3, fcol4, fcol5 = st.columns([1, 1.2, 1.2, 1.2, 6])
+# Build active filter list from session state
+sl_filter = []
+if st.session_state.filter_crit: sl_filter.append("🔴 Critical")
+if st.session_state.filter_warn: sl_filter.append("🟡 Warning")
+if st.session_state.filter_ok:   sl_filter.append("🟢 OK")
+
+# Render filter row: label + 3 toggle buttons styled via inline HTML
+fcol1, fcol2, fcol3, fcol4, _ = st.columns([1, 1.4, 1.4, 1.4, 5])
+
 with fcol1:
     st.markdown(
         "<div style='font-size:0.6rem;color:#475569;text-transform:uppercase;"
@@ -297,25 +283,30 @@ with fcol1:
         unsafe_allow_html=True,
     )
 
-for col, key, label in [
-    (fcol2, "filter_crit", "🔴 Critical"),
-    (fcol3, "filter_warn", "🟡 Warning"),
-    (fcol4, "filter_ok",   "🟢 OK"),
+for col, key, emoji, label in [
+    (fcol2, "filter_crit", "🔴", "Critical"),
+    (fcol3, "filter_warn", "🟡", "Warning"),
+    (fcol4, "filter_ok",   "🟢", "OK"),
 ]:
     is_on = st.session_state[key]
-    div_class = "filter-btn-on" if is_on else "filter-btn"
+    bg    = "#052e16" if is_on else "#0f172a"
+    clr   = "#22c55e" if is_on else "#475569"
+    bdr   = "#22c55e88" if is_on else "#1e293b"
+    tick  = "✓ " if is_on else ""
     with col:
-        st.markdown(f"<div class='{div_class}'>", unsafe_allow_html=True)
-        if st.button(label, key=f"btn_{key}"):
+        st.markdown(
+            f"<div style='background:{bg};color:{clr};border:1px solid {bdr};"
+            f"border-radius:20px;padding:5px 12px;font-size:0.78rem;"
+            f"font-weight:700;text-align:center;margin-bottom:-38px;"
+            f"pointer-events:none;position:relative;z-index:0;'>"
+            f"{tick}{emoji} {label}</div>",
+            unsafe_allow_html=True,
+        )
+        # Real clickable button sits on top — made fully transparent
+        if st.button(f"{emoji} {label}", key=f"btn_{key}",
+                     use_container_width=True):
             st.session_state[key] = not st.session_state[key]
             st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
-
-# Build active filter list from session state
-sl_filter = []
-if st.session_state.filter_crit: sl_filter.append("🔴 Critical")
-if st.session_state.filter_warn: sl_filter.append("🟡 Warning")
-if st.session_state.filter_ok:   sl_filter.append("🟢 OK")
 
 st.markdown("<div style='height:4px;'></div>", unsafe_allow_html=True)
 
