@@ -67,6 +67,17 @@ REGION_TZ = {
     "East":    ZoneInfo("Asia/Singapore"),
 }
 
+def _passes_filter(qk: str, sl_filter: str) -> bool:
+    """Return True if this queue key matches the active severity filter."""
+    if sl_filter == "All":
+        return True
+    sc = severity_score("service_level_pct",
+                        st.session_state.prev_msg[qk]["service_level_pct"])
+    if sl_filter == "🔴 Critical": return sc >= 1.0
+    if sl_filter == "🟡 Warning":  return sc == 0.5
+    if sl_filter == "🟢 OK":       return sc == 0.0
+    return True
+
 # Pre-computed once — SL excluded from expansion charts (shown as sparkline)
 NON_SL_CFG = [
     (mk, mn, u, w, c, inv)
@@ -271,17 +282,26 @@ for tab, region in zip(region_tabs, REGIONS):
         for bu in BUS:
             bu_color = BU_COLORS[bu]
 
+            # Determine which activities in this BU+region pass the filter
+            matching = [
+                a for a in ACTIVITIES
+                if _passes_filter(_qk(bu, region, a), sl_filter)
+            ]
+
+            # Hide BU entirely if nothing matches
+            if not matching:
+                continue
+
             st.markdown(
                 f"<div class='bu-header' style='color:{bu_color};"
                 f"border-color:{bu_color}33;'>{bu}</div>",
                 unsafe_allow_html=True,
             )
 
-            row_a = ACTIVITIES[:3]
-            row_b = ACTIVITIES[3:]
-
-            for row_acts in (row_a, row_b):
-                card_cols = st.columns(3)
+            # Render in rows of up to 3, left-aligned
+            for row_start in range(0, len(matching), 3):
+                row_acts = matching[row_start:row_start + 3]
+                card_cols = st.columns(3)  # always 3 cols; unused ones stay empty → left-align
 
                 for card_col, activity in zip(card_cols, row_acts):
                     qk        = _qk(bu, region, activity)
@@ -292,14 +312,6 @@ for tab, region in zip(region_tabs, REGIONS):
                     sl_sc     = severity_score("service_level_pct", sl_val)
                     sl_clr    = sev_color(sl_sc)
                     is_exp    = qk in st.session_state.expanded
-
-                    # Apply severity filter — skip card if it doesn't match
-                    if sl_filter == "🔴 Critical" and sl_sc < 1.0:
-                        continue
-                    if sl_filter == "🟡 Warning"  and sl_sc != 0.5:
-                        continue
-                    if sl_filter == "🟢 OK"       and sl_sc > 0.0:
-                        continue
 
                     with card_col:
                         hdr1, hdr2, hdr3 = st.columns([2, 1, 0.8])
@@ -346,7 +358,7 @@ for tab, region in zip(region_tabs, REGIONS):
                             key=f"sl_{qk}",
                         )
 
-                # Expanded panels for this row of 3
+                # Expanded panels — only for activities that passed the filter
                 for activity in row_acts:
                     qk        = _qk(bu, region, activity)
                     row_data  = lv[lv["queue_key"] == qk].iloc[0]
@@ -354,12 +366,6 @@ for tab, region in zip(region_tabs, REGIONS):
                     short     = ACTIVITY_SHORT[activity]
                     is_exp    = qk in st.session_state.expanded
 
-                    # Skip expansion panel for filtered-out queues
-                    sl_sc_exp = severity_score("service_level_pct",
-                                               row_data["service_level_pct"])
-                    if sl_filter == "🔴 Critical" and sl_sc_exp < 1.0: continue
-                    if sl_filter == "🟡 Warning"  and sl_sc_exp != 0.5: continue
-                    if sl_filter == "🟢 OK"       and sl_sc_exp > 0.0:  continue
 
                     exp_slot = st.empty()
                     if is_exp:
