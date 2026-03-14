@@ -106,7 +106,7 @@ with title_col:
     st.markdown(
         "<div style='padding:4px 0;'>"
         "<span style='font-size:1.3rem;font-weight:900;color:#38bdf8;"
-        "letter-spacing:0.1em;'>📡 GCC</span>"
+        "letter-spacing:0.1em;'>📡 GCC DASHBOARD</span>"
         "<span style='font-size:0.65rem;color:#334155;margin-left:10px;"
         "letter-spacing:0.08em;'>GLOBAL COMMAND CENTRE · LIVE MONITOR</span>"
         "</div>",
