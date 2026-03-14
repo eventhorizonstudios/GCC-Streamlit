@@ -8,12 +8,12 @@ from zoneinfo import ZoneInfo
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 from utils import (
-    GLOBAL_CSS, BUS, REGIONS, ACTIVITIES, QUEUE_KEYS, QK_META,
-    BU_COLORS, REGION_COLORS, ACTIVITY_COLORS, ACTIVITY_SHORT,
+    GLOBAL_CSS, BUS, REGIONS, QUEUES, QUEUE_KEYS, QK_META,
+    BU_COLORS, REGION_COLORS, QUEUE_COLORS, QUEUE_SHORT,
     CHART_METRIC_CFG, ALL_METRICS, POLL_SECS,
     init_and_tick, latest_values,
     severity_score, sev_color, sev_label,
-    make_sl_sparkline, make_single_activity_chart, make_plain_chart,
+    make_sl_sparkline, make_single_queue_chart, make_plain_chart,
     _qk,
 )
 
@@ -225,7 +225,7 @@ def _region_summary_row(region: str):
             f"<span style='font-size:0.62rem;color:#475569;'>·</span>"
             f"<span style='font-size:0.78rem;font-weight:700;color:{worst_sl_clr};"
             f"white-space:nowrap;flex:1;overflow:hidden;text-overflow:ellipsis;'>"
-            f"{ACTIVITY_SHORT[worst_row['activity']]}</span>"
+            f"{QUEUE_SHORT[worst_row['queue']]}</span>"
             f"<span style='font-size:0.78rem;font-weight:900;color:{worst_sl_clr};"
             f"white-space:nowrap;margin-left:auto;'>{worst_sl:.0f}%</span>"
             f"</div></div>",
@@ -284,7 +284,7 @@ for tab, region in zip(region_tabs, REGIONS):
 
             # Determine which activities in this BU+region pass the filter
             matching = [
-                a for a in ACTIVITIES
+                a for a in QUEUES
                 if _passes_filter(_qk(bu, region, a), sl_filter)
             ]
 
@@ -303,11 +303,11 @@ for tab, region in zip(region_tabs, REGIONS):
                 row_acts = matching[row_start:row_start + 3]
                 card_cols = st.columns(3)  # always 3 cols; unused ones stay empty → left-align
 
-                for card_col, activity in zip(card_cols, row_acts):
-                    qk        = _qk(bu, region, activity)
+                for card_col, queue in zip(card_cols, row_acts):
+                    qk        = _qk(bu, region, queue)
                     row_data  = lv[lv["queue_key"] == qk].iloc[0]
-                    act_color = ACTIVITY_COLORS[activity]
-                    short     = ACTIVITY_SHORT[activity]
+                    act_color = QUEUE_COLORS[queue]
+                    short     = QUEUE_SHORT[queue]
                     sl_val    = row_data["service_level_pct"]
                     sl_sc     = severity_score("service_level_pct", sl_val)
                     sl_clr    = sev_color(sl_sc)
@@ -325,7 +325,7 @@ for tab, region in zip(region_tabs, REGIONS):
                                 f"<span style='font-size:0.82rem;font-weight:700;"
                                 f"color:{act_color};'>{short}</span>"
                                 f"<span style='font-size:0.62rem;color:#475569;"
-                                f"margin-left:4px;'>{activity}</span>"
+                                f"margin-left:4px;'>{queue}</span>"
                                 f"</div>",
                                 unsafe_allow_html=True,
                             )
@@ -359,11 +359,11 @@ for tab, region in zip(region_tabs, REGIONS):
                         )
 
                 # Expanded panels — only for activities that passed the filter
-                for activity in row_acts:
-                    qk        = _qk(bu, region, activity)
+                for queue in row_acts:
+                    qk        = _qk(bu, region, queue)
                     row_data  = lv[lv["queue_key"] == qk].iloc[0]
-                    act_color = ACTIVITY_COLORS[activity]
-                    short     = ACTIVITY_SHORT[activity]
+                    act_color = QUEUE_COLORS[queue]
+                    short     = QUEUE_SHORT[queue]
                     is_exp    = qk in st.session_state.expanded
 
 
@@ -398,7 +398,7 @@ for tab, region in zip(region_tabs, REGIONS):
                                 f"border-radius:6px;padding:7px 12px;margin:2px 0 6px;'>"
                                 f"<span style='font-size:0.72rem;font-weight:800;"
                                 f"color:{act_color};margin-right:10px;'>"
-                                f"{short} · {activity}</span>"
+                                f"{short} · {queue}</span>"
                                 f"{sep.join(alert_parts)}"
                                 f"</div>",
                                 unsafe_allow_html=True,
@@ -420,7 +420,7 @@ for tab, region in zip(region_tabs, REGIONS):
                                 chart_cols[1:], NON_SL_CFG
                             ):
                                 with cc:
-                                    fig_m = make_single_activity_chart(
+                                    fig_m = make_single_queue_chart(
                                         qk, mkey, mname, unit,
                                         warn, crit, invert,
                                         act_color, height=155,

@@ -16,32 +16,32 @@ import streamlit as st
 # ═══════════════════════════════════════════════════════════════════════════════
 BUS        = ["BU1", "BU2", "BU3", "BU4"]
 REGIONS    = ["West", "Central", "East"]
-ACTIVITIES = ["Activity 1", "Activity 2", "Activity 3",
-              "Activity 4", "Activity 5", "Activity 6"]
+QUEUES = ["Queue 1", "Queue 2", "Queue 3",
+              "Queue 4", "Queue 5", "Queue 6"]
 
-def _qk(bu: str, region: str, activity: str) -> str:
-    """Canonical queue key — spaces stripped: 'BU1_Region1_Activity3'"""
-    return f"{bu}_{region.replace(' ', '')}_{activity.replace(' ', '')}"
+def _qk(bu: str, region: str, queue: str) -> str:
+    """Canonical queue key — spaces stripped: 'BU1_Region1_Queue3'"""
+    return f"{bu}_{region.replace(' ', '')}_{queue.replace(' ', '')}"
 
-QUEUE_KEYS = [_qk(bu, r, a) for bu in BUS for r in REGIONS for a in ACTIVITIES]  # 72
+QUEUE_KEYS = [_qk(bu, r, a) for bu in BUS for r in REGIONS for a in QUEUES]  # 72
 
 QK_META = {
-    _qk(bu, r, a): {"bu": bu, "region": r, "activity": a}
-    for bu in BUS for r in REGIONS for a in ACTIVITIES
+    _qk(bu, r, a): {"bu": bu, "region": r, "queue": a}
+    for bu in BUS for r in REGIONS for a in QUEUES
 }
 
-ACTIVITY_SHORT = {f"Activity {i}": f"A{i}" for i in range(1, 7)}
+QUEUE_SHORT = {f"Queue {i}": f"A{i}" for i in range(1, 7)}
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # COLOURS & DISPLAY
 # ═══════════════════════════════════════════════════════════════════════════════
-ACTIVITY_COLORS = {
-    "Activity 1": "#38bdf8",  # sky blue
-    "Activity 2": "#a78bfa",  # violet
-    "Activity 3": "#34d399",  # emerald
-    "Activity 4": "#fb923c",  # orange
-    "Activity 5": "#f472b6",  # pink
-    "Activity 6": "#facc15",  # yellow
+QUEUE_COLORS = {
+    "Queue 1": "#38bdf8",  # sky blue
+    "Queue 2": "#a78bfa",  # violet
+    "Queue 3": "#34d399",  # emerald
+    "Queue 4": "#fb923c",  # orange
+    "Queue 5": "#f472b6",  # pink
+    "Queue 6": "#facc15",  # yellow
 }
 
 BU_COLORS = {
@@ -69,12 +69,12 @@ REGION_COLORS = {
 def _build_profiles() -> dict:
     bu_off  = {"BU1":  0, "BU2":  6, "BU3": -4, "BU4": 12}
     reg_off = {"West": 0, "Central": 3, "East": -2}
-    act_off = {"Activity 1": 0, "Activity 2": 2, "Activity 3": 1,
-               "Activity 4": 3, "Activity 5": 1, "Activity 6": 2}
+    act_off = {"Queue 1": 0, "Queue 2": 2, "Queue 3": 1,
+               "Queue 4": 3, "Queue 5": 1, "Queue 6": 2}
     profiles = {}
     for bu in BUS:
         for r in REGIONS:
-            for a in ACTIVITIES:
+            for a in QUEUES:
                 off = bu_off[bu] + reg_off[r] + act_off[a]
                 profiles[_qk(bu, r, a)] = {
                     "queue":  max(5,  18 + off),
@@ -274,7 +274,7 @@ def latest_values() -> pd.DataFrame:
             "queue_key":         qk,
             "bu":                meta["bu"],
             "region":            meta["region"],
-            "activity":          meta["activity"],
+            "queue":          meta["queue"],
             "queue_volume":      lat["queue_volume"],
             "aht_seconds":       lat["aht_seconds"],
             "occupancy_pct":     lat["occupancy_pct"],
@@ -395,11 +395,11 @@ def make_sl_sparkline(qk: str, color: str, height: int = 90) -> go.Figure:
     )
     return fig
 
-def make_single_activity_chart(qk: str, metric_key: str, label: str,
+def make_single_queue_chart(qk: str, metric_key: str, label: str,
                                 unit: str, warn: float, crit: float,
                                 invert: bool, color: str,
                                 height: int = 160) -> go.Figure:
-    """Full metric chart for a single activity queue — used in expanded view."""
+    """Full metric chart for a single queue queue — used in expanded view."""
     df_q = st.session_state.history[qk]
     vals = df_q[metric_key]
     y_max = max(vals.max() * 1.15, crit * 1.1)
