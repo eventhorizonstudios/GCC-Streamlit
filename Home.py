@@ -1,28 +1,18 @@
 """
-Home.py — GCC Overview  (TV monitoring display)
-
-Layout:
-  • Sticky header bar — GCC branding + 8 global KPIs + last-poll clock
-  • Body — 4 BU sections stacked vertically, each containing 3 region columns
-    (West / Central / East).  Every region column lists its 6 activities.
-  • Each activity row shows:
-      [status dot]  [name + BU/region]  [latest SL value]  [SL sparkline]
-  • Click the ▶ / ▼ toggle button to expand an activity row and reveal all
-    5 metric charts beneath it.  Click again to collapse.
-  • Multiple activities can be expanded simultaneously.
+Home.py — GCC Overview (TV monitoring display)
+Run with:  streamlit run Home.py
 """
 
-import time
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 from utils import (
-    GLOBAL_CSS, BUS, REGIONS, ACTIVITIES, QUEUE_KEYS, QK_META,
+    GLOBAL_CSS, BUS, REGIONS, ACTIVITIES, QUEUE_KEYS,
     BU_COLORS, REGION_COLORS, ACTIVITY_COLORS, ACTIVITY_SHORT,
-    CHART_METRIC_CFG, ALL_METRICS,
+    CHART_METRIC_CFG, ALL_METRICS, POLL_SECS,
     init_and_tick, latest_values, render_sidebar_status,
     severity_score, sev_color, sev_label,
     make_sl_sparkline, make_single_activity_chart,
-    POLL_SECS, _qk,
+    _qk,
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -32,77 +22,41 @@ st.set_page_config(
     page_title="GCC · Overview",
     page_icon="📡",
     layout="wide",
-    initial_sidebar_state="collapsed",   # maximise screen real estate on TV
+    initial_sidebar_state="collapsed",
 )
 
 st.markdown(GLOBAL_CSS, unsafe_allow_html=True)
 
-# Non-blocking auto-refresh — fires every POLL_SECS without sleeping
-st_autorefresh(interval=POLL_SECS * 1000, key='data_refresh')
+# Non-blocking refresh — no sleep, button clicks remain instant
+st_autorefresh(interval=POLL_SECS * 1000, key="data_refresh")
 
-# Extra TV-optimised CSS
+# TV-optimised CSS additions
 st.markdown("""
 <style>
-  /* Tighten block padding for dense TV layout */
   .block-container { padding: 3rem 1.5rem 1rem !important; }
-
-  /* Activity row hover highlight */
-  .act-row:hover { background: #131b2e !important; }
-
-  /* Hide sidebar toggle button — TV mode */
   [data-testid="collapsedControl"] { display: none !important; }
-
-  /* Reduce plotly chart top whitespace */
-  .js-plotly-plot .plotly { margin-top: 0 !important; }
-
-  /* BU section header */
   .bu-header {
     font-size: 1.1rem; font-weight: 900; letter-spacing: 0.08em;
-    padding: 10px 0 6px; margin-bottom: 4px;
-    border-bottom: 2px solid;
+    padding: 10px 0 6px; margin-bottom: 4px; border-bottom: 2px solid;
   }
-
-  /* Region column header */
-  .region-header {
-    font-size: 0.68rem; font-weight: 700; letter-spacing: 0.12em;
-    text-transform: uppercase; padding: 6px 0 4px;
-    border-bottom: 1px solid #1e293b; margin-bottom: 6px;
-  }
-
-  /* Expand button — ghost style */
   div[data-testid="stButton"] > button {
-    background: transparent !important;
-    border: none !important;
-    color: #334155 !important;
-    padding: 0 4px !important;
-    font-size: 0.65rem !important;
-    line-height: 1 !important;
-    min-height: 0 !important;
-    height: 18px !important;
+    background: transparent !important; border: none !important;
+    color: #334155 !important; padding: 0 4px !important;
+    font-size: 0.65rem !important; line-height: 1 !important;
+    min-height: 0 !important; height: 18px !important;
   }
   div[data-testid="stButton"] > button:hover {
-    color: #38bdf8 !important;
-    background: transparent !important;
-  }
-
-  /* Expanded metric panel */
-  .metric-panel {
-    background: #0d1117;
-    border: 1px solid #1e293b;
-    border-radius: 8px;
-    padding: 12px;
-    margin: 4px 0 10px;
+    color: #38bdf8 !important; background: transparent !important;
   }
 </style>
 """, unsafe_allow_html=True)
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# DATA TICK + SESSION STATE
+# DATA + SIDEBAR
 # ═══════════════════════════════════════════════════════════════════════════════
 init_and_tick()
 render_sidebar_status()
 
-# Track which activity rows are expanded (set of queue keys)
 if "expanded" not in st.session_state:
     st.session_state.expanded = set()
 
@@ -127,13 +81,13 @@ with hc1:
     )
 
 kpi_defs = [
-    ("Agents",    f"{int(lv['agents_logged'].sum())}"),
-    ("In Queue",  f"{lv['queue_volume'].sum():.0f}"),
-    ("Peak Q",    f"{lv['queue_volume'].max():.0f}"),
-    ("Avg AHT",   f"{lv['aht_seconds'].mean():.0f}s"),
-    ("Svc Level", f"{lv['service_level_pct'].mean():.0f}%"),
-    ("Occupancy", f"{lv['occupancy_pct'].mean():.0f}%"),
-    ("Adherence", f"{lv['adherence_pct'].mean():.0f}%"),
+    ("Agents",     f"{int(lv['agents_logged'].sum())}"),
+    ("In Queue",   f"{lv['queue_volume'].sum():.0f}"),
+    ("Peak Q",     f"{lv['queue_volume'].max():.0f}"),
+    ("Avg AHT",    f"{lv['aht_seconds'].mean():.0f}s"),
+    ("Svc Level",  f"{lv['service_level_pct'].mean():.0f}%"),
+    ("Occupancy",  f"{lv['occupancy_pct'].mean():.0f}%"),
+    ("Adherence",  f"{lv['adherence_pct'].mean():.0f}%"),
 ]
 for col, (label, val) in zip([hc2, hc3, hc4, hc5, hc6, hc7, hc8], kpi_defs):
     with col:
@@ -148,7 +102,6 @@ for col, (label, val) in zip([hc2, hc3, hc4, hc5, hc6, hc7, hc8], kpi_defs):
         )
 
 with hc9:
-    # Collapse-all / expand-all controls
     st.markdown("<div style='height:4px;'></div>", unsafe_allow_html=True)
     if st.button("⊕ All", key="expand_all", help="Expand all activities"):
         st.session_state.expanded = set(QUEUE_KEYS)
@@ -169,31 +122,27 @@ with hc10:
 st.markdown("<hr style='margin:6px 0 10px;border-color:#1e293b;'>", unsafe_allow_html=True)
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# MAIN GRID — Region tabs × BU sections (stacked) × 2×3 activity card grid
+# MAIN GRID — Region tabs × BU sections × 2×3 activity card grid
 # ═══════════════════════════════════════════════════════════════════════════════
 region_tabs = st.tabs([f"📍 {r}" for r in REGIONS])
 
 for tab, region in zip(region_tabs, REGIONS):
     with tab:
-        # 4 BU sections stacked vertically, each with a 2×3 sparkline card grid
         for bu in BUS:
             bu_color = BU_COLORS[bu]
 
-            # BU section header
             st.markdown(
                 f"<div class='bu-header' style='color:{bu_color};"
                 f"border-color:{bu_color}33;'>{bu}</div>",
                 unsafe_allow_html=True,
             )
 
-            # Split 6 activities into two rows of 3
-            row_a = ACTIVITIES[:3]   # A1, A2, A3
-            row_b = ACTIVITIES[3:]   # A4, A5, A6
+            row_a = ACTIVITIES[:3]
+            row_b = ACTIVITIES[3:]
 
             for row_acts in (row_a, row_b):
                 card_cols = st.columns(3)
 
-                # ── 3 sparkline cards ─────────────────────────────────────────
                 for card_col, activity in zip(card_cols, row_acts):
                     qk        = _qk(bu, region, activity)
                     row_data  = lv[lv["queue_key"] == qk].iloc[0]
@@ -202,23 +151,16 @@ for tab, region in zip(region_tabs, REGIONS):
                     sl_val    = row_data["service_level_pct"]
                     sl_sc     = severity_score("service_level_pct", sl_val)
                     sl_clr    = sev_color(sl_sc)
-                    dot_clr   = sl_clr
                     is_exp    = qk in st.session_state.expanded
 
-                    # Overall worst score for the card border
-                    card_sc   = max(severity_score(mk, row_data[mk]) for mk in ALL_METRICS)
-                    card_clr  = sev_color(card_sc)
-                    card_lbl  = sev_label(card_sc)
-
                     with card_col:
-                        # Card header row — name + badge + SL value + toggle
-                        hc1, hc2, hc3 = st.columns([2, 1, 0.8])
+                        hdr1, hdr2, hdr3 = st.columns([2, 1, 0.8])
 
-                        with hc1:
+                        with hdr1:
                             st.markdown(
                                 f"<div style='padding-top:4px;'>"
                                 f"<span style='display:inline-block;width:8px;height:8px;"
-                                f"border-radius:50%;background:{dot_clr};"
+                                f"border-radius:50%;background:{sl_clr};"
                                 f"margin-right:5px;vertical-align:middle;'></span>"
                                 f"<span style='font-size:0.82rem;font-weight:700;"
                                 f"color:{act_color};'>{short}</span>"
@@ -228,7 +170,7 @@ for tab, region in zip(region_tabs, REGIONS):
                                 unsafe_allow_html=True,
                             )
 
-                        with hc2:
+                        with hdr2:
                             st.markdown(
                                 f"<div style='text-align:center;padding-top:2px;'>"
                                 f"<span style='font-size:1.25rem;font-weight:900;"
@@ -239,7 +181,7 @@ for tab, region in zip(region_tabs, REGIONS):
                                 unsafe_allow_html=True,
                             )
 
-                        with hc3:
+                        with hdr3:
                             toggle_label = "▼" if is_exp else "▶"
                             if st.button(toggle_label, key=f"tog_{qk}",
                                          help="Expand / hide metrics"):
@@ -249,7 +191,6 @@ for tab, region in zip(region_tabs, REGIONS):
                                     st.session_state.expanded.add(qk)
                                 st.rerun()
 
-                        # Sparkline — full width of the card
                         fig_sl = make_sl_sparkline(qk, act_color, height=80)
                         st.plotly_chart(
                             fig_sl, use_container_width=True,
@@ -257,10 +198,10 @@ for tab, region in zip(region_tabs, REGIONS):
                             key=f"sl_{qk}",
                         )
 
-                # ── Expanded panels for this row — full width, one per activity
+                # Expanded panels for this row of 3
                 for activity in row_acts:
-                    qk       = _qk(bu, region, activity)
-                    row_data = lv[lv["queue_key"] == qk].iloc[0]
+                    qk        = _qk(bu, region, activity)
+                    row_data  = lv[lv["queue_key"] == qk].iloc[0]
                     act_color = ACTIVITY_COLORS[activity]
                     short     = ACTIVITY_SHORT[activity]
                     is_exp    = qk in st.session_state.expanded
@@ -271,7 +212,6 @@ for tab, region in zip(region_tabs, REGIONS):
                             all_sc  = max(severity_score(mk, row_data[mk]) for mk in ALL_METRICS)
                             hdr_clr = sev_color(all_sc)
 
-                            # Alert summary bar
                             alert_parts = []
                             for mk, mname, unit in [
                                 ("queue_volume",      "Q",   ""),
@@ -294,8 +234,7 @@ for tab, region in zip(region_tabs, REGIONS):
                                 f"<div style='background:#0d1117;"
                                 f"border:1px solid {hdr_clr}33;"
                                 f"border-left:3px solid {hdr_clr};"
-                                f"border-radius:6px;padding:7px 12px;"
-                                f"margin:2px 0 6px;'>"
+                                f"border-radius:6px;padding:7px 12px;margin:2px 0 6px;'>"
                                 f"<span style='font-size:0.72rem;font-weight:800;"
                                 f"color:{act_color};margin-right:10px;'>"
                                 f"{short} · {activity}</span>"
@@ -304,10 +243,12 @@ for tab, region in zip(region_tabs, REGIONS):
                                 unsafe_allow_html=True,
                             )
 
-                            # 4 metric charts — SL omitted (already visible as sparkline)
-                            non_sl_cfg = [(mk, mn, u, w, c, inv)
-                                          for mk, mn, u, w, c, inv in CHART_METRIC_CFG
-                                          if mk != "service_level_pct"]
+                            # 4 metric charts — SL omitted (shown as sparkline above)
+                            non_sl_cfg = [
+                                (mk, mn, u, w, c, inv)
+                                for mk, mn, u, w, c, inv in CHART_METRIC_CFG
+                                if mk != "service_level_pct"
+                            ]
                             chart_cols = st.columns(4)
                             for cc, (mkey, mname, unit, warn, crit, invert) in zip(
                                 chart_cols, non_sl_cfg
@@ -325,7 +266,3 @@ for tab, region in zip(region_tabs, REGIONS):
                                     )
 
             st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# AUTO-REFRESH
-# ═══════════════════════════════════════════════════════════════════════════════
