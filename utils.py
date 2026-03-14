@@ -129,19 +129,7 @@ GLOBAL_CSS = """
   [data-testid="stSidebar"]        { background: #080c14 !important; border-right: 1px solid #1e293b; }
   [data-testid="stSidebarContent"] { background: #080c14 !important; }
 
-  [data-testid="metric-container"] {
-    background: #111827; border: 1px solid #1e293b;
-    border-radius: 10px; padding: 14px 18px;
-    box-shadow: 0 0 14px rgba(56,189,248,0.06);
-  }
-  [data-testid="stMetricLabel"] { font-size:0.72rem; color:#64748b; letter-spacing:0.08em; text-transform:uppercase; }
-  [data-testid="stMetricValue"] { font-size:1.8rem;  font-weight:800; color:#f1f5f9; }
-  [data-testid="stMetricDelta"] { font-size:0.78rem; }
 
-  .section-label {
-    font-size:0.68rem; font-weight:700; letter-spacing:0.14em;
-    text-transform:uppercase; color:#38bdf8; margin:0 0 6px 0;
-  }
 
   /* Tabs styling */
   [data-testid="stTabs"] [data-testid="stMarkdownContainer"] p { margin:0; }
@@ -358,11 +346,7 @@ def render_sidebar_status():
         )
         st.markdown("<hr style='margin:0 0 10px;'>", unsafe_allow_html=True)
 
-        st.page_link("Home.py",        label="Overview", icon="🌐")
-        st.page_link("pages/1_BU1.py", label="BU1",      icon="🏢")
-        st.page_link("pages/2_BU2.py", label="BU2",      icon="🏢")
-        st.page_link("pages/3_BU3.py", label="BU3",      icon="🏢")
-        st.page_link("pages/4_BU4.py", label="BU4",      icon="🏢")
+        st.page_link("Home.py", label="Overview", icon="🌐")
 
         st.markdown("<hr>", unsafe_allow_html=True)
         st.markdown(
@@ -408,50 +392,6 @@ def _add_bands(fig, warn, crit, y_min, y_max, invert):
     fig.add_hline(y=warn, line=dict(color="#f59e0b", dash="dash", width=1), opacity=0.5)
     fig.add_hline(y=crit, line=dict(color="#ef4444", dash="dash", width=1), opacity=0.5)
 
-def make_activity_chart(bu: str, region: str, metric_key: str, unit: str,
-                         warn: float, crit: float, invert: bool = False,
-                         height: int = 220) -> go.Figure:
-    """One chart per metric — 6 coloured lines, one per activity."""
-    fig = go.Figure()
-    all_vals = []
-    for act in ACTIVITIES:
-        all_vals.extend(st.session_state.history[_qk(bu, region, act)][metric_key].tolist())
-    y_max = max(max(all_vals) * 1.2, crit * 1.1) if all_vals else crit * 1.2
-    y_min = max(min(all_vals) * 0.85, 0)         if all_vals else 0
-    _add_bands(fig, warn, crit, y_min, y_max, invert)
-
-    for act in ACTIVITIES:
-        qk    = _qk(bu, region, act)
-        df_q  = st.session_state.history[qk]
-        color = ACTIVITY_COLORS[act]
-        short = ACTIVITY_SHORT[act]
-        fig.add_trace(go.Scatter(
-            x=df_q["ts"], y=df_q[metric_key],
-            line=dict(color=color, width=1.8), mode="lines",
-            name=short,
-            hovertemplate=f"<b>{act}: %{{y:.0f}} {unit}</b><br>%{{x|%H:%M:%S}}<extra></extra>",
-        ))
-        fig.add_trace(go.Scatter(
-            x=[df_q["ts"].iloc[-1]], y=[df_q[metric_key].iloc[-1]],
-            mode="markers",
-            marker=dict(color=color, size=6, line=dict(color="#0b0f1a", width=2)),
-            showlegend=False, hoverinfo="skip",
-        ))
-
-    layout = _base_layout(height)
-    layout["showlegend"] = True
-    layout["legend"] = dict(
-        orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1,
-        font=dict(color="#94a3b8", size=9), bgcolor="rgba(0,0,0,0)",
-        traceorder="normal",
-    )
-    layout["yaxis"]["ticksuffix"] = f" {unit}"
-    fig.update_layout(**layout)
-    return fig
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# OVERVIEW-SPECIFIC CHART FACTORIES
-# ═══════════════════════════════════════════════════════════════════════════════
 def make_sl_sparkline(qk: str, color: str, height: int = 90) -> go.Figure:
     """Compact service-level sparkline — no axes, just the coloured line
     and warn/crit bands. Designed to be read at a glance on a TV screen."""
@@ -579,164 +519,3 @@ def make_plain_chart(qk: str, metric_key: str, label: str, unit: str,
         hovermode="x unified",
     )
     return fig
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# BU PAGE RENDERER
-# ═══════════════════════════════════════════════════════════════════════════════
-def render_bu_page(bu: str):
-    render_header(bu, "3 REGIONS  ·  6 ACTIVITIES PER REGION")
-    lv = latest_values()
-
-    # ── Region tabs ────────────────────────────────────────────────────────────
-    tabs = st.tabs([f"📍 {r}" for r in REGIONS])
-
-    for tab, region in zip(tabs, REGIONS):
-        with tab:
-            _render_region(bu, region, lv)
-
-def _render_region(bu: str, region: str, lv: pd.DataFrame):
-    """Content for a single region tab on a BU page."""
-    region_lv = lv[(lv["bu"] == bu) & (lv["region"] == region)].reset_index(drop=True)
-
-    # ── Activity Snapshot Cards (2 rows × 3 cols) ───────────────────────────
-    st.markdown('<p class="section-label">📊 Activity Snapshot</p>',
-                unsafe_allow_html=True)
-
-    def _mini_kpi(label, val, mk):
-        sc  = severity_score(mk, val)
-        clr = sev_color(sc)
-        return (
-            f"<div style='text-align:center;'>"
-            f"<div style='font-size:0.55rem;color:#475569;text-transform:uppercase;"
-            f"letter-spacing:0.06em;margin-bottom:2px;'>{label}</div>"
-            f"<div style='font-size:1.0rem;font-weight:800;color:{clr};'>{val:.0f}</div>"
-            f"</div>"
-        )
-
-    row1 = st.columns(3)
-    row2 = st.columns(3)
-    card_cols = list(row1) + list(row2)
-
-    for col, act in zip(card_cols, ACTIVITIES):
-        row   = region_lv[region_lv["activity"] == act].iloc[0]
-        qk    = _qk(bu, region, act)
-        color = ACTIVITY_COLORS[act]
-        short = ACTIVITY_SHORT[act]
-        # Overall worst score for this activity
-        act_scores = [severity_score(mk, row[mk]) for mk in ALL_METRICS]
-        act_score  = max(act_scores)
-        badge_clr  = sev_color(act_score)
-        badge_lbl  = sev_label(act_score)
-
-        kpis = (
-            _mini_kpi("Queue",    row["queue_volume"],      "queue_volume")      +
-            _mini_kpi("AHT",      row["aht_seconds"],       "aht_seconds")       +
-            _mini_kpi("SL %",     row["service_level_pct"], "service_level_pct") +
-            _mini_kpi("Occ %",    row["occupancy_pct"],     "occupancy_pct")     +
-            _mini_kpi("Adh %",    row["adherence_pct"],     "adherence_pct")
-        )
-
-        handle_rate = (row["cases_handled"] / row["cases_offered"] * 100
-                       if row["cases_offered"] > 0 else 0)
-
-        with col:
-            st.markdown(
-                f"<div style='background:#111827;border:1px solid #1e293b;"
-                f"border-top:3px solid {color};border-radius:10px;"
-                f"padding:12px 14px;margin-bottom:8px;'>"
-                # Header row
-                f"<div style='display:flex;justify-content:space-between;"
-                f"align-items:center;margin-bottom:10px;'>"
-                f"<span style='font-size:0.9rem;font-weight:800;color:{color};'>"
-                f"{short}</span>"
-                f"<span style='font-size:0.7rem;font-weight:700;color:{color};"
-                f"opacity:0.7;'>{act}</span>"
-                f"<span style='font-size:0.58rem;font-weight:800;color:{badge_clr};"
-                f"background:rgba(0,0,0,0.4);padding:2px 6px;"
-                f"border-radius:3px;'>{badge_lbl}</span>"
-                f"</div>"
-                # KPI row
-                f"<div style='display:grid;grid-template-columns:repeat(5,1fr);"
-                f"gap:4px;margin-bottom:10px;background:#0d1117;"
-                f"border-radius:6px;padding:8px 4px;'>"
-                f"{kpis}"
-                f"</div>"
-                # Footer
-                f"<div style='font-size:0.62rem;color:#334155;"
-                f"display:flex;justify-content:space-between;"
-                f"border-top:1px solid #1e293b;padding-top:7px;'>"
-                f"<span>👥 {int(row['agents_logged'])}</span>"
-                f"<span>📥 {int(row['cases_offered'])}</span>"
-                f"<span>✅ {handle_rate:.0f}%</span>"
-                f"</div></div>",
-                unsafe_allow_html=True,
-            )
-
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    # ── Alert Status ────────────────────────────────────────────────────────
-    with st.expander("🚨 Alert Status", expanded=False):
-        for act in ACTIVITIES:
-            row   = region_lv[region_lv["activity"] == act].iloc[0]
-            color = ACTIVITY_COLORS[act]
-            short = ACTIVITY_SHORT[act]
-            parts = []
-            for mk, name, unit in [
-                ("queue_volume",      "Queue", ""),
-                ("aht_seconds",       "AHT",   "s"),
-                ("service_level_pct", "SL",    "%"),
-                ("occupancy_pct",     "Occ",   "%"),
-                ("adherence_pct",     "Adh",   "%"),
-            ]:
-                sc  = severity_score(mk, row[mk])
-                clr = sev_color(sc)
-                parts.append(
-                    f"<span style='color:{clr};font-weight:700;'>"
-                    f"{sev_label(sc)} {name}: {row[mk]:.0f}{unit}</span>"
-                )
-            sep = "&nbsp;·&nbsp;"
-            st.markdown(
-                f"<div style='background:#0d1117;border:1px solid #1e293b;"
-                f"border-left:3px solid {color};border-radius:6px;"
-                f"padding:8px 14px;margin-bottom:5px;font-size:0.78rem;'>"
-                f"<strong style='color:{color};margin-right:10px;'>{short}</strong>"
-                f"{sep.join(parts)}</div>",
-                unsafe_allow_html=True,
-            )
-
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    # ── Metric Trend Charts ─────────────────────────────────────────────────
-    legend_html = "  ".join(
-        f"<span style='display:inline-flex;align-items:center;gap:5px;'>"
-        f"<span style='width:18px;height:3px;background:{ACTIVITY_COLORS[a]};"
-        f"display:inline-block;border-radius:2px;'></span>"
-        f"<span style='font-size:0.7rem;color:#64748b;'>{ACTIVITY_SHORT[a]}</span></span>"
-        for a in ACTIVITIES
-    )
-    st.markdown(
-        f'<p class="section-label">📈 Metric Trends</p>'
-        f"<div style='margin-bottom:10px;'>{legend_html}</div>",
-        unsafe_allow_html=True,
-    )
-
-    # Row 1: Queue | AHT | Service Level
-    r1c1, r1c2, r1c3 = st.columns(3)
-    # Row 2: Occupancy | Adherence
-    r2c1, r2c2 = st.columns(2)
-
-    chart_grid = [
-        (r1c1, CHART_METRIC_CFG[0]),
-        (r1c2, CHART_METRIC_CFG[1]),
-        (r1c3, CHART_METRIC_CFG[2]),
-        (r2c1, CHART_METRIC_CFG[3]),
-        (r2c2, CHART_METRIC_CFG[4]),
-    ]
-
-    for c, (mkey, mname, unit, warn, crit, invert) in chart_grid:
-        with c:
-            st.markdown(f'<p class="section-label">{mname} ({unit})</p>',
-                        unsafe_allow_html=True)
-            fig = make_activity_chart(bu, region, mkey, unit, warn, crit, invert)
-            st.plotly_chart(fig, use_container_width=True,
-                            config={"displayModeBar": False})

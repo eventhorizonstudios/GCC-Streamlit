@@ -10,7 +10,7 @@ from utils import (
     BU_COLORS, REGION_COLORS, ACTIVITY_COLORS, ACTIVITY_SHORT,
     CHART_METRIC_CFG, ALL_METRICS, POLL_SECS,
     init_and_tick, latest_values, render_sidebar_status,
-    severity_score, sev_color,
+    severity_score, sev_color, sev_label,
     make_sl_sparkline, make_single_activity_chart, make_plain_chart,
     _qk,
 )
