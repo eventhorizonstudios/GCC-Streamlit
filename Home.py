@@ -14,6 +14,7 @@ Layout:
 
 import time
 import streamlit as st
+from streamlit_autorefresh import st_autorefresh
 from utils import (
     GLOBAL_CSS, BUS, REGIONS, ACTIVITIES, QUEUE_KEYS, QK_META,
     BU_COLORS, REGION_COLORS, ACTIVITY_COLORS, ACTIVITY_SHORT,
@@ -35,6 +36,9 @@ st.set_page_config(
 )
 
 st.markdown(GLOBAL_CSS, unsafe_allow_html=True)
+
+# Non-blocking auto-refresh — fires every POLL_SECS without sleeping
+st_autorefresh(interval=POLL_SECS * 1000, key='data_refresh')
 
 # Extra TV-optimised CSS
 st.markdown("""
@@ -325,4 +329,3 @@ for tab, region in zip(region_tabs, REGIONS):
 # ═══════════════════════════════════════════════════════════════════════════════
 # AUTO-REFRESH
 # ═══════════════════════════════════════════════════════════════════════════════
-st.rerun(after=POLL_SECS)
